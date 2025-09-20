@@ -25,11 +25,13 @@ app.use(cors(), bodyParser.json());
 const pinecone = new Pinecone({
   apiKey: process.env.PINECONE_API_KEY,
 });
+ 
 app.use(cors({
-  origin: "https://character-kappa.vercel.app/", // ⬅️ replace with your actual Vercel domain
+  origin: ["http://localhost:5173", "https://character-kappa.vercel.app/"], // add your frontend URLs
   methods: ["GET", "POST"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  credentials: true
 }));
+
 
 // -------------------------------------------------------
 // ✅ Root route (health check for Render)
