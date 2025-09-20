@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import styled, { keyframes } from 'styled-components';
 import { useSpeechRecognition } from 'react-speech-kit';
+import { sendMessage, getTTS } from "../api/chatApi";
 import useTTS from '../hooks/useTTS';
 
 const fadeIn = keyframes`from { opacity:0 } to { opacity:1 }`;
