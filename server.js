@@ -25,6 +25,18 @@ app.use(cors(), bodyParser.json());
 const pinecone = new Pinecone({
   apiKey: process.env.PINECONE_API_KEY,
 });
+app.use(cors({
+  origin: "https://character-kappa.vercel.app/", // ⬅️ replace with your actual Vercel domain
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+
+// -------------------------------------------------------
+// ✅ Root route (health check for Render)
+// -------------------------------------------------------
+app.get("/", (req, res) => {
+  res.send("✅ Origami Character Backend is running on Render!");
+});
 
 // Initialize index with error handling
 let index;
