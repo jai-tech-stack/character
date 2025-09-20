@@ -1,5 +1,7 @@
 // src/api/chatApi.js
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+console.log('API_URL:', API_URL); // Add this to debug
 
 export async function sendMessage(message, sessionId = null) {
   try {
