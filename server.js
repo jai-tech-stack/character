@@ -18,19 +18,28 @@ console.log('✅ ENV CHECK', {
 });
 
 // --- Express app ---
+// --- Express app ---
 const app = express();
-app.use(cors(), bodyParser.json());
+app.use(bodyParser.json());
+
+// ... other code ...
+
+app.use(cors({
+  origin: [
+    "http://localhost:5173", 
+    "http://localhost:3001",  // ✅ Your Vite dev server
+    "https://character-kappa.vercel.app/"
+  ],
+  methods: ["GET", "POST"],
+  credentials: true
+}));
 
 // --- Pinecone setup ---
 const pinecone = new Pinecone({
   apiKey: process.env.PINECONE_API_KEY,
 });
  
-app.use(cors({
-  origin: ["http://localhost:5173", "https://character-kappa.vercel.app/"], // add your frontend URLs
-  methods: ["GET", "POST"],
-  credentials: true
-}));
+ 
 
 
 // -------------------------------------------------------
@@ -289,4 +298,5 @@ app.post('/tts', async (req, res) => {
 /* -------------------------------------------------------
    🔹 Start Server
 ------------------------------------------------------- */
-app.listen(3001, () => console.log('🚀 Backend live at http://localhost:3001'));
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => console.log(`🚀 Backend live on port ${PORT}`));
