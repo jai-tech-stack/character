@@ -1,36 +1,20 @@
-// src/api/chatApi.js - TEMPORARY TEST
-const API_URL = 'https://character-chan.onrender.com'; // Hardcoded for now
+// src/api/chatApi.js
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
-console.log('🔍 Using API_URL:', API_URL); // Should show your Render URL
-
-export async function sendMessage(message, sessionId = null) {
-  console.log('🚀 Calling:', `${API_URL}/chat`);
-  try {
-    const res = await fetch(`${API_URL}/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, sessionId }),
-    });
-    if (!res.ok) throw new Error(`Server error: ${res.status}`);
-    return res.json();
-  } catch (err) {
-    console.error("sendMessage error:", err);
-    throw err;
-  }
+export async function sendMessage(message) {
+  const res = await fetch(`${API_URL}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  });
+  return res.json();
 }
 
 export async function getTTS(text) {
-  console.log('🚀 Calling:', `${API_URL}/tts`);
-  try {
-    const res = await fetch(`${API_URL}/tts`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
-    if (!res.ok) throw new Error(`Server error: ${res.status}`);
-    return res.arrayBuffer();
-  } catch (err) {
-    console.error("getTTS error:", err);
-    throw err;
-  }
+  const res = await fetch(`${API_URL}/tts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  return res.arrayBuffer();
 }
