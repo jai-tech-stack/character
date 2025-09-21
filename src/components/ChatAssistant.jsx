@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import styled from "styled-components";
 import { useSpeechRecognition } from "react-speech-kit";
-import useTTS from "../hooks/useTTS";
 import { sendMessage, getTTS } from "../api/chatApi";
 import { v4 as uuidv4 } from "uuid";
 
@@ -24,7 +23,6 @@ export default function ChatAssistant() {
   const [sessionId]=useState(()=>uuidv4());
   const idleTimer = useRef(null);
   const {listen,listening,stop} = useSpeechRecognition({ onResult: handleUser });
-  const { speak } = useTTS();
 
   useEffect(()=>{
     scheduleIdlePrompt();
@@ -47,10 +45,11 @@ export default function ChatAssistant() {
 
       stop();
       try {
-        const audioBuffer = await getTTS(reply);
-        const audio = new Audio(URL.createObjectURL(new Blob([audioBuffer], { type:"audio/mp3" })));
-        await audio.play();
-      } catch(err){ console.error("TTS error:",err); }
+        // Use the browser TTS function
+        await getTTS(reply);
+      } catch(err){ 
+        console.error("TTS error:",err); 
+      }
 
     } catch(err){
       console.error("Chat error:",err);
@@ -68,6 +67,16 @@ export default function ChatAssistant() {
       {open && (
         <ChatBox>
           {msgs.map((m,i)=>(<div key={i}><b>{m.from}:</b> {m.text}</div>))}
+          <button 
+            onClick={() => setOpen(false)}
+            style={{
+              position: 'absolute', top: '0.5rem', right: '0.5rem',
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#999', fontSize: '1rem'
+            }}
+          >
+            ✖
+          </button>
         </ChatBox>
       )}
       <ChatBtn onClick={toggleRecording}>{listening?'🔊':'🎙️'}</ChatBtn>

@@ -5,7 +5,6 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import styled, { keyframes } from "styled-components";
 import { useSpeechRecognition } from "react-speech-kit";
 import { sendMessage, getTTS } from "../api/chatApi";
-import useTTS from "../hooks/useTTS";
 
 const fadeIn = keyframes`from { opacity:0 } to { opacity:1 }`;
 
@@ -85,7 +84,6 @@ export default function CharacterView({ onMessage }) {
   const [aiText, setAiText] = useState("");
   const [showContactForm, setShowContactForm] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", message: "" });
-  const { speak } = useTTS();
   const { listen, listening, stop } = useSpeechRecognition({ onResult: handleVoiceCommand });
 
   const hotspotPrompts = {
@@ -119,16 +117,14 @@ export default function CharacterView({ onMessage }) {
     window.speechSynthesis.cancel();
 
     try {
-      const audioBuffer = await getTTS(text);
-      const audioBlob = new Blob([audioBuffer], { type: "audio/mp3" });
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      await audio.play();
+      // Use the browser TTS function from chatApi
+      await getTTS(text);
     } catch (err) {
       console.error("❌ TTS error:", err);
     }
 
-    setTimeout(() => listen({ interimResults:false }), 500);
+    // Resume listening after a short delay
+    setTimeout(() => listen({ interimResults: false }), 500);
   };
 
   // THREE.js scene setup remains unchanged
