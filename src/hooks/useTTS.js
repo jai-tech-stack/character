@@ -1,5 +1,6 @@
 // src/api/chatApi.js
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+const API_URL = "https://character-chan.onrender.com" 
+//import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 console.log('🔍 API_URL being used:', API_URL);
 
