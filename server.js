@@ -6,29 +6,27 @@ import { config } from 'dotenv';
 import { Pinecone } from '@pinecone-database/pinecone';
 import { OpenAI } from 'openai';
 import { OpenAIEmbeddings } from '@langchain/openai';
-import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
+// import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js'; // Commented out - not working on free tier
 import { v4 as uuidv4 } from 'uuid';
 
 config();
 
 console.log('✅ ENV CHECK', {
-  eleven: !!process.env.ELEVENLABS_API_KEY,
+  // eleven: !!process.env.ELEVENLABS_API_KEY, // Commented out
   openai: !!process.env.OPENAI_API_KEY,
   pinecone: !!process.env.PINECONE_API_KEY,
 });
 
 // --- Express app ---
-// --- Express app ---
 const app = express();
 app.use(bodyParser.json());
-
-// ... other code ...
 
 app.use(cors({
   origin: [
     "http://localhost:5173", 
-    "http://localhost:3001",  // ✅ Your Vite dev server
-    "https://character-kappa.vercel.app"
+    "http://localhost:3001",
+    "https://character-kappa.vercel.app",
+    "https://character-kappa.vercel.app/"
   ],
   methods: ["GET", "POST"],
   credentials: true
@@ -38,9 +36,6 @@ app.use(cors({
 const pinecone = new Pinecone({
   apiKey: process.env.PINECONE_API_KEY,
 });
- 
- 
-
 
 // -------------------------------------------------------
 // ✅ Root route (health check for Render)
@@ -99,7 +94,7 @@ initializePinecone().catch(console.error);
 // --- AI clients ---
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const embeddingsClient = new OpenAIEmbeddings({ apiKey: process.env.OPENAI_API_KEY });
-const tts = new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY });
+// const tts = new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY }); // Commented out
 
 /* -------------------------------------------------------
    🔹 Sub-Agents
@@ -208,7 +203,17 @@ ${context}`
    🔹 Chat Endpoint
 ------------------------------------------------------- */
 app.post('/chat', async (req, res) => {
-  const { message } = req.body;
+  const { message, sessionId } = req.body;
+  
+  console.log('💬 Chat request received:', { 
+    message: message?.substring(0, 50),
+    sessionId,
+    hasMessage: !!message 
+  });
+
+  if (!message || typeof message !== 'string') {
+    return res.status(400).json({ error: 'Invalid or missing message' });
+  }
 
   try {
     // Check if index is available
@@ -241,6 +246,8 @@ app.post('/chat', async (req, res) => {
 
     // Orchestrate agents
     const reply = await planAndExecute(message, context);
+    
+    console.log('✅ Chat response generated:', reply?.substring(0, 50));
     res.json({ reply });
 
     // Save memory asynchronously
@@ -261,42 +268,49 @@ app.post('/chat', async (req, res) => {
       })();
     }
   } catch (err) {
-    console.error('Error in /chat:', err);
-    if (!res.headersSent) res.status(500).json({ error: 'Chat processing failed' });
+    console.error('❌ Error in /chat:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: 'Chat processing failed', 
+        details: err.message 
+      });
+    }
   }
 });
 
 /* -------------------------------------------------------
-   🔹 TTS Endpoint
+   🔹 TTS Endpoint - DISABLED (ElevenLabs free tier issues)
 ------------------------------------------------------- */
-app.post('/tts', async (req, res) => {
-  const { text } = req.body;
-  if (!text || typeof text !== 'string') {
-    return res.status(400).json({ error: 'Invalid or missing text' });
-  }
+app.post('/tts', (req, res) => {
+  console.log('🔊 TTS request received - returning browser fallback message');
+  res.status(503).json({ 
+    error: 'TTS service temporarily unavailable',
+    message: 'Please use browser speech synthesis instead',
+    fallback: true
+  });
+});
 
-  const voiceId = 'nIHefZ8GOsC19mjvAhSN'; // Rakesh's voice
-  try {
-    const stream = await tts.textToSpeech.convert(voiceId, {
-      text,
-      modelId: 'eleven_monolingual_v1',
-      voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-    });
-
-    const chunks = [];
-    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
-    const buffer = Buffer.concat(chunks);
-
-    res.set('Content-Type', 'audio/webm');
-    res.send(buffer);
-  } catch (e) {
-    console.error('❌ TTS conversion error:', e);
-    res.status(500).json({ error: 'TTS conversion failed' });
-  }
+/* -------------------------------------------------------
+   🔹 Health check endpoint
+------------------------------------------------------- */
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    services: {
+      openai: !!process.env.OPENAI_API_KEY,
+      pinecone: !!process.env.PINECONE_API_KEY,
+      index: !!index,
+      tts: 'disabled - using browser fallback'
+    }
+  });
 });
 
 /* -------------------------------------------------------
    🔹 Start Server
 ------------------------------------------------------- */
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`🚀 Backend live on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 Backend live on port ${PORT}`);
+  console.log(`📍 Health check: http://localhost:${PORT}/health`);
+});
