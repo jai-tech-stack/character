@@ -28,7 +28,7 @@ app.use(cors({
   origin: [
     "http://localhost:5173", 
     "http://localhost:3001",  // ✅ Your Vite dev server
-    "https://character-kappa.vercel.app/"
+    "https://character-kappa.vercel.app"
   ],
   methods: ["GET", "POST"],
   credentials: true
