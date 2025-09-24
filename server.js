@@ -8,10 +8,7 @@ import { OpenAI } from 'openai';
 import { OpenAIEmbeddings } from '@langchain/openai';
 // import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js'; // Commented out - not working on free tier
 import { v4 as uuidv4 } from 'uuid';
-import { PDFLoader } from "langchain/document_loaders/fs/pdf";
-import { DocxLoader } from "langchain/document_loaders/fs/docx";
-import { TextLoader } from "langchain/document_loaders/fs/text";
-import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+import fileUpload from 'express-fileupload';
 
 config();
 
@@ -1067,18 +1064,39 @@ async function getLeadAnalytics() {
   };
 }
 
-// Knowledge base management endpoint
+// Knowledge Base System WITHOUT LangChain - Add to server.js
+
+import fileUpload from 'express-fileupload';
+
+// Add file upload middleware
+app.use(fileUpload({
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+  useTempFiles: true,
+  tempFileDir: '/tmp/'
+}));
+
+// Simple knowledge upload endpoint (text files only for now)
 app.post('/upload-knowledge', async (req, res) => {
   if (!req.files || !req.files.document) {
     return res.status(400).json({ error: 'No document uploaded' });
   }
   
   const file = req.files.document;
-  console.log('📚 Processing knowledge upload:', file.name);
+  console.log('Processing knowledge upload:', file.name);
   
   try {
-    const documents = await processKnowledgeDocument(file);
-    const embedded = await embedKnowledgeDocuments(documents);
+    let content;
+    
+    if (file.mimetype === 'text/plain') {
+      content = file.data.toString('utf8');
+    } else {
+      return res.status(400).json({ 
+        error: 'Only text files (.txt) are supported currently. PDF support coming soon.' 
+      });
+    }
+    
+    const chunks = await processTextContent(content, file.name);
+    const embedded = await embedKnowledgeChunks(chunks);
     
     res.json({ 
       success: true, 
@@ -1095,74 +1113,90 @@ app.post('/upload-knowledge', async (req, res) => {
   }
 });
 
-// Process different document types
-async function processKnowledgeDocument(file) {
-  let loader;
-  const filePath = `/tmp/${file.name}`;
+// Process text content into chunks
+async function processTextContent(text, source) {
+  const chunks = splitTextIntoChunks(text, 1000, 200);
   
-  // Save uploaded file temporarily
-  await file.mv(filePath);
-  
-  // Choose appropriate loader based on file type
-  if (file.mimetype === 'application/pdf') {
-    loader = new PDFLoader(filePath);
-  } else if (file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-    loader = new DocxLoader(filePath);
-  } else if (file.mimetype === 'text/plain') {
-    loader = new TextLoader(filePath);
-  } else {
-    throw new Error(`Unsupported file type: ${file.mimetype}`);
-  }
-  
-  console.log(`Loading document with ${loader.constructor.name}`);
-  const documents = await loader.load();
-  
-  // Clean up temporary file
-  require('fs').unlinkSync(filePath);
-  
-  return documents;
+  return chunks.map((chunk, index) => ({
+    content: chunk,
+    source: source,
+    chunkIndex: index,
+    timestamp: Date.now(),
+    // Auto-classify content
+    hasPortfolio: chunk.toLowerCase().includes('portfolio') || 
+                 chunk.toLowerCase().includes('case study') ||
+                 chunk.toLowerCase().includes('project') ||
+                 chunk.toLowerCase().includes('client'),
+    hasProcess: chunk.toLowerCase().includes('process') || 
+               chunk.toLowerCase().includes('methodology') ||
+               chunk.toLowerCase().includes('approach') ||
+               chunk.toLowerCase().includes('step'),
+    hasPricing: chunk.toLowerCase().includes('price') || 
+               chunk.toLowerCase().includes('cost') ||
+               chunk.toLowerCase().includes('investment') ||
+               chunk.toLowerCase().includes('budget') ||
+               chunk.toLowerCase().includes('$'),
+    hasServices: chunk.toLowerCase().includes('service') || 
+                chunk.toLowerCase().includes('offering') ||
+                chunk.toLowerCase().includes('help') ||
+                chunk.toLowerCase().includes('provide')
+  }));
 }
 
-// Split and embed knowledge documents
-async function embedKnowledgeDocuments(documents) {
-  const textSplitter = new RecursiveCharacterTextSplitter({
-    chunkSize: 1000,
-    chunkOverlap: 200,
-    separators: ['\n\n', '\n', '. ', ', ', ' ']
-  });
+// Simple text chunking function
+function splitTextIntoChunks(text, maxChunkSize = 1000, overlap = 200) {
+  const chunks = [];
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
   
-  const splits = await textSplitter.splitDocuments(documents);
-  console.log(`📖 Split into ${splits.length} chunks`);
+  let currentChunk = '';
+  let currentSize = 0;
   
+  for (let i = 0; i < sentences.length; i++) {
+    const sentence = sentences[i].trim() + '.';
+    
+    if (currentSize + sentence.length > maxChunkSize && currentChunk.length > 0) {
+      chunks.push(currentChunk.trim());
+      
+      // Add overlap from previous chunk
+      const words = currentChunk.split(' ');
+      const overlapWords = words.slice(-Math.floor(overlap/10));
+      currentChunk = overlapWords.join(' ') + ' ' + sentence;
+      currentSize = currentChunk.length;
+    } else {
+      currentChunk += ' ' + sentence;
+      currentSize += sentence.length;
+    }
+  }
+  
+  if (currentChunk.trim().length > 0) {
+    chunks.push(currentChunk.trim());
+  }
+  
+  return chunks.filter(chunk => chunk.length > 50); // Filter out very short chunks
+}
+
+// Embed knowledge chunks
+async function embedKnowledgeChunks(chunks) {
   const embeddedChunks = [];
   
-  for (const [index, split] of splits.entries()) {
+  for (const [index, chunk] of chunks.entries()) {
     try {
-      const embedding = await embeddingsClient.embedQuery(split.pageContent);
-      
-      const metadata = {
-        content: split.pageContent,
-        type: 'knowledge',
-        source: split.metadata.source || 'uploaded_document',
-        page: split.metadata.page || null,
-        chunkIndex: index,
-        timestamp: Date.now(),
-        // Extract key information
-        hasPortfolio: split.pageContent.toLowerCase().includes('portfolio') || 
-                     split.pageContent.toLowerCase().includes('case study'),
-        hasProcess: split.pageContent.toLowerCase().includes('process') || 
-                   split.pageContent.toLowerCase().includes('methodology'),
-        hasPricing: split.pageContent.toLowerCase().includes('price') || 
-                   split.pageContent.toLowerCase().includes('cost') ||
-                   split.pageContent.toLowerCase().includes('investment'),
-        hasServices: split.pageContent.toLowerCase().includes('service') || 
-                    split.pageContent.toLowerCase().includes('offering')
-      };
+      const embedding = await embeddingsClient.embedQuery(chunk.content);
       
       const record = {
-        id: `knowledge_${Date.now()}_${index}`,
+        id: `knowledge_${chunk.source}_${Date.now()}_${index}`,
         values: embedding,
-        metadata
+        metadata: {
+          content: chunk.content,
+          type: 'knowledge',
+          source: chunk.source,
+          chunkIndex: chunk.chunkIndex,
+          timestamp: chunk.timestamp,
+          hasPortfolio: chunk.hasPortfolio,
+          hasProcess: chunk.hasProcess,
+          hasPricing: chunk.hasPricing,
+          hasServices: chunk.hasServices
+        }
       };
       
       embeddedChunks.push(record);
@@ -1172,29 +1206,30 @@ async function embedKnowledgeDocuments(documents) {
     }
   }
   
-  // Batch upsert to Pinecone
-  if (embeddedChunks.length > 0) {
+  // Upload to Pinecone in batches
+  if (embeddedChunks.length > 0 && index) {
     const batchSize = 100;
     for (let i = 0; i < embeddedChunks.length; i += batchSize) {
       const batch = embeddedChunks.slice(i, i + batchSize);
       await index.upsert({ records: batch });
+      console.log(`Uploaded batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(embeddedChunks.length/batchSize)}`);
     }
   }
   
-  console.log(`✅ Embedded ${embeddedChunks.length} knowledge chunks`);
+  console.log(`Embedded ${embeddedChunks.length} knowledge chunks`);
   return embeddedChunks;
 }
 
-// Enhanced knowledge retrieval in chat
+// Enhanced knowledge retrieval
 async function getEnhancedKnowledgeContext(query, userIntent = null) {
   if (!index) return '';
   
   try {
     const queryEmbedding = await embeddingsClient.embedQuery(query);
     
-    // Build search filters based on intent
     let filter = { type: 'knowledge' };
     
+    // Filter by intent
     if (userIntent) {
       switch (userIntent) {
         case 'portfolio_request':
@@ -1220,16 +1255,16 @@ async function getEnhancedKnowledgeContext(query, userIntent = null) {
     });
     
     const knowledgeContext = results.matches
-      ?.map((match, index) => {
-        const confidence = match.score || 0;
+      ?.filter(match => match.score > 0.7) // Only include relevant matches
+      ?.map((match) => {
         const content = match.metadata?.content || '';
         const source = match.metadata?.source || 'unknown';
-        
-        return `[Source: ${source}] ${content}`;
+        const relevance = Math.round((match.score || 0) * 100);
+        return `[${source} - ${relevance}% relevant] ${content}`;
       })
       .join('\n\n') || '';
     
-    console.log(`🧠 Retrieved ${results.matches?.length || 0} knowledge matches`);
+    console.log(`Retrieved ${results.matches?.length || 0} knowledge matches for: ${userIntent || 'general'}`);
     return knowledgeContext;
     
   } catch (error) {
@@ -1238,167 +1273,159 @@ async function getEnhancedKnowledgeContext(query, userIntent = null) {
   }
 }
 
-// Pre-populated knowledge for immediate use
+// Seed initial knowledge (comprehensive Origami Creative content)
 async function seedInitialKnowledge() {
+  if (!index) {
+    console.log('Pinecone index not available, skipping knowledge seeding');
+    return;
+  }
+  
   console.log('Seeding initial Origami Creative knowledge...');
   
-  const initialKnowledge = [
-    {
-      content: "Origami Creative is a full-service branding and creative agency specializing in brand strategy, visual identity design, and comprehensive brand experiences. We help businesses unfold their potential through strategic creative solutions.",
-      type: 'knowledge',
-      hasServices: true,
-      source: 'company_overview'
-    },
-    {
-      content: "Our brand development process includes: 1) Discovery & Research phase where we analyze your market, competitors, and target audience. 2) Strategy Development where we define positioning, messaging, and brand architecture. 3) Creative Execution including logo design, visual identity, and brand guidelines. 4) Implementation across all touchpoints. 5) Launch and ongoing brand management.",
-      type: 'knowledge',
-      hasProcess: true,
-      source: 'methodology'
-    },
-    {
-      content: "Portfolio highlights include successful rebrands for tech startups, healthcare organizations, and retail brands. Case study example: TechFlow startup rebrand increased customer trust scores by 40% and led to successful Series A funding. Healthcare rebrand for MedCare Clinic improved patient acquisition by 25%.",
-      type: 'knowledge',
-      hasPortfolio: true,
-      source: 'case_studies'
-    },
-    {
-      content: "Investment ranges vary by scope: Brand identity projects typically range from $15,000-$50,000 for comprehensive packages including strategy, design, and guidelines. Full brand development with implementation ranges $50,000-$150,000. We offer flexible payment structures and always provide detailed proposals before starting work.",
-      type: 'knowledge',
-      hasPricing: true,
-      source: 'pricing_guide'
-    },
-    {
-      content: "Our services include: Brand Strategy (positioning, messaging, market analysis), Visual Identity (logos, typography, color systems), Brand Guidelines (usage standards, voice & tone), Marketing Materials (business cards, brochures, digital assets), Website Design (brand-aligned web experiences), and Packaging Design (product packaging and retail presence).",
-      type: 'knowledge',
-      hasServices: true,
-      source: 'services_overview'
-    }
+  const knowledgeTexts = [
+    // Company Overview
+    `Origami Creative is a full-service branding and creative agency that helps businesses unfold their potential through strategic branding solutions. We specialize in brand strategy, visual identity design, logo creation, and comprehensive brand experiences.
+
+Our team combines deep strategic thinking with exceptional creative execution to help startups, scale-ups, and established businesses build memorable brands that resonate with their target audiences. We work across industries including technology, healthcare, retail, finance, and professional services.
+
+Founded on the principle that great brands emerge from the perfect fold of strategy and creativity, we've helped over 200 businesses establish their market presence and achieve their growth objectives.`,
+
+    // Services Overview
+    `Our comprehensive services include Brand Strategy development where we define positioning, messaging, and competitive differentiation. Visual Identity design encompasses logo creation, color palette development, typography selection, and brand pattern systems.
+
+We provide Marketing Collateral design including business cards, brochures, presentations, and digital templates. Website Design services focus on brand-aligned digital experiences that convert visitors into customers.
+
+Packaging Design helps product-based businesses create shelf presence and unboxing experiences. Environmental Design covers signage, office branding, and retail space design.
+
+Additional offerings include Brand Photography art direction, Social Media brand guidelines, and Brand Training workshops for internal teams.`,
+
+    // Process and Methodology
+    `Our proven Brand Development Process follows five distinct phases designed to ensure strategic alignment and creative excellence.
+
+Phase 1 - Discovery and Research involves comprehensive market analysis, competitor auditing, target audience research, and stakeholder interviews. We analyze your current brand position and identify opportunities for differentiation.
+
+Phase 2 - Strategy Development focuses on defining brand positioning, creating messaging frameworks, establishing brand personality, and developing value propositions that resonate with target customers.
+
+Phase 3 - Creative Execution brings strategy to life through logo design, visual identity systems, color psychology application, and typography selection. Every creative decision supports the strategic foundation.
+
+Phase 4 - Brand Guidelines creation documents proper brand usage, maintains consistency standards, and provides templates for future applications across all touchpoints.
+
+Phase 5 - Implementation and Launch includes rollout planning, material production oversight, digital deployment, and ongoing brand management support.
+
+Projects typically require 8-12 weeks depending on scope and complexity.`,
+
+    // Portfolio and Case Studies
+    `Case Study: TechFlow SaaS Platform - A B2B software startup needed to establish credibility with enterprise clients. Challenge: Startup perception limiting enterprise sales opportunities.
+
+Solution: Repositioned from scrappy startup to industry expert through sophisticated visual identity, professional website redesign, and comprehensive sales collateral system. Developed thought leadership content strategy and trade show presence.
+
+Results: 40% increase in enterprise-level inquiries, successful Series A funding round of $12M, and recognition as "Rising Star" in industry publication. Client testimonial: "The rebrand transformed how prospects perceive us - we're now seen as the established player in our space."
+
+Case Study: MedCare Health Network - Regional healthcare provider competing against national chains needed brand differentiation. Challenge: Perception as small, outdated compared to major competitors.
+
+Solution: Created "Community Care Expert" positioning emphasizing local knowledge and personal relationships. Developed warm, trustworthy visual identity with patient-friendly wayfinding system across 12 locations.
+
+Results: 25% increase in new patient acquisition, improved patient satisfaction scores, and successful expansion into two adjacent markets. Notable: 60% improvement in online review ratings.`,
+
+    // Pricing and Investment
+    `Our investment structure is designed to provide value at every business stage with transparent pricing and flexible payment options.
+
+Startup Brand Package ($15,000 - $25,000): Perfect for new businesses needing foundational brand identity. Includes brand strategy workshop, logo design with 3 concepts, color palette, typography selection, basic brand guidelines, and business card design. Timeline: 4-6 weeks.
+
+Professional Brand Package ($25,000 - $45,000): Ideal for growing businesses requiring comprehensive brand systems. Includes extensive brand strategy, complete visual identity system, detailed brand guidelines, marketing template library, and initial implementation support. Timeline: 6-8 weeks.
+
+Enterprise Brand Package ($45,000 - $75,000): Designed for established companies needing full brand transformation. Includes market research phase, stakeholder interviews, comprehensive strategy development, complete visual identity system, extensive guidelines, brand training workshops, and 90-day implementation support. Timeline: 10-12 weeks.
+
+Additional Services: Website Design ($20,000 - $50,000), Packaging Design ($15,000 - $35,000), Photography Direction ($8,000 - $20,000), Environmental Design ($25,000 - $60,000).
+
+Payment Terms: 50% deposit to initiate project, remaining balance split across major milestones. All packages include revisions and 30-day post-launch support. We also offer retainer arrangements for ongoing brand management.`,
+
+    // Industry Expertise
+    `We have deep experience across multiple industries with specialized knowledge in Technology startups and SaaS platforms where we understand the unique challenges of establishing credibility and scaling rapidly.
+
+Healthcare and Medical practices benefit from our expertise in building trust and navigating regulatory considerations while maintaining approachable patient communications.
+
+Retail and E-commerce brands leverage our understanding of shelf presence, packaging psychology, and omnichannel brand consistency across physical and digital touchpoints.
+
+Financial Services and Professional firms appreciate our ability to balance trustworthiness with innovation, creating sophisticated brands that appeal to both individual and business clients.
+
+Food and Hospitality businesses tap into our understanding of appetite appeal, ambiance creation, and experience design that drives customer loyalty and repeat business.
+
+Each industry brings unique challenges and opportunities, and our team adapts our proven methodology to address sector-specific requirements while maintaining strategic rigor and creative excellence.`
   ];
-  
+
   try {
-    const records = [];
+    const allRecords = [];
     
-    for (const [index, knowledge] of initialKnowledge.entries()) {
-      const embedding = await embeddingsClient.embedQuery(knowledge.content);
+    for (const [textIndex, knowledgeText] of knowledgeTexts.entries()) {
+      const chunks = await processTextContent(knowledgeText, `seed_knowledge_${textIndex}`);
       
-      records.push({
-        id: `seed_knowledge_${index}`,
-        values: embedding,
-        metadata: {
-          content: knowledge.content,
-          type: knowledge.type,
-          source: knowledge.source,
-          hasPortfolio: knowledge.hasPortfolio || false,
-          hasProcess: knowledge.hasProcess || false,
-          hasPricing: knowledge.hasPricing || false,
-          hasServices: knowledge.hasServices || false,
-          timestamp: Date.now()
-        }
-      });
+      for (const chunk of chunks) {
+        const embedding = await embeddingsClient.embedQuery(chunk.content);
+        
+        allRecords.push({
+          id: `seed_${textIndex}_${chunk.chunkIndex}_${Date.now()}`,
+          values: embedding,
+          metadata: {
+            content: chunk.content,
+            type: 'knowledge',
+            source: chunk.source,
+            hasPortfolio: chunk.hasPortfolio,
+            hasProcess: chunk.hasProcess,
+            hasPricing: chunk.hasPricing,
+            hasServices: chunk.hasServices,
+            timestamp: chunk.timestamp
+          }
+        });
+      }
     }
     
-    if (index) {
-      await index.upsert({ records });
-      console.log(`Initial knowledge seeded: ${records.length} entries`);
+    // Upload in batches
+    const batchSize = 50;
+    for (let i = 0; i < allRecords.length; i += batchSize) {
+      const batch = allRecords.slice(i, i + batchSize);
+      await index.upsert({ records: batch });
+      console.log(`Seeded batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(allRecords.length/batchSize)}`);
     }
+    
+    console.log(`Initial knowledge seeded: ${allRecords.length} chunks`);
     
   } catch (error) {
     console.error('Failed to seed initial knowledge:', error);
   }
 }
 
-// Update the enhanced chat endpoint to use knowledge retrieval
-app.post('/chat', async (req, res) => {
-  const { message, sessionId } = req.body;
+// Initialize knowledge base
+async function initializeKnowledgeBase() {
+  console.log('Initializing knowledge base...');
   
-  if (!message || typeof message !== 'string') {
-    return res.status(400).json({ error: 'Invalid or missing message' });
-  }
-
   try {
-    // Enhanced memory retrieval with conversation threading
-    let conversationContext = '';
-    let userProfile = {};
-    
-    if (index && sessionId) {
-      const sessionHistory = await getConversationHistory(sessionId);
-      userProfile = await getUserProfile(sessionId);
-      conversationContext = buildConversationContext(sessionHistory, userProfile);
+    if (index) {
+      await seedInitialKnowledge();
+      console.log('Knowledge base initialization complete');
+    } else {
+      console.log('Pinecone not ready, will seed knowledge when available');
     }
-
-    // Classify intent for targeted knowledge retrieval
-    const userIntent = classifyUserIntent(message);
-    
-    // Get relevant knowledge from uploaded documents and seeded data
-    const knowledgeContext = await getEnhancedKnowledgeContext(message, userIntent);
-    
-    // Enhanced agent orchestration with knowledge
-    const reply = await planAndExecuteWithKnowledge(message, {
-      conversationContext,
-      knowledgeContext,
-      userProfile,
-      sessionId,
-      userIntent
-    });
-    
-    // Extract and update user information
-    const extractedInfo = extractUserInformation(message, reply);
-    if (Object.keys(extractedInfo).length > 0) {
-      await updateUserProfile(sessionId, extractedInfo);
-    }
-    
-    res.json({ reply, userProfile: extractedInfo });
-
-    // Save enhanced memory
-    if (index && sessionId) {
-      const embedding = await embeddingsClient.embedQuery(message);
-      await saveEnhancedMemory(message, reply, sessionId, extractedInfo, embedding);
-    }
-    
-  } catch (err) {
-    console.error('Error in enhanced chat:', err);
-    if (!res.headersSent) {
-      res.status(500).json({ 
-        error: 'Chat processing failed', 
-        details: err.message 
-      });
-    }
+  } catch (error) {
+    console.error('Knowledge base initialization failed:', error);
   }
-});
-
-// Intent classification helper
-function classifyUserIntent(message) {
-  const lowerMessage = message.toLowerCase();
-  
-  const intentPatterns = {
-    'portfolio_request': ['portfolio', 'examples', 'case study', 'work', 'projects', 'show me'],
-    'process_inquiry': ['process', 'how do you', 'methodology', 'approach', 'steps'],
-    'pricing_inquiry': ['price', 'cost', 'budget', 'investment', 'quote', 'expensive'],
-    'service_inquiry': ['services', 'what do you do', 'offerings', 'help with'],
-    'contact_request': ['contact', 'reach out', 'call', 'meet', 'consultation']
-  };
-  
-  for (const [intent, patterns] of Object.entries(intentPatterns)) {
-    if (patterns.some(pattern => lowerMessage.includes(pattern))) {
-      return intent;
-    }
-  }
-  
-  return 'general_inquiry';
 }
 
-// Enhanced agent planning with knowledge integration
+// Update your existing chat endpoint to use knowledge
+// Replace your current planAndExecute function with this enhanced version
 async function planAndExecuteWithKnowledge(message, context) {
-  const { conversationContext, knowledgeContext, userProfile, userIntent } = context;
+  const { conversationContext, userProfile, sessionId, userIntent } = context;
+  
+  // Get relevant knowledge
+  const knowledgeContext = await getEnhancedKnowledgeContext(message, userIntent);
   
   const enhancedPrompt = [
     {
       role: 'system',
-      content: `
-You are the AI Brand Strategist for ORIGAMI CREATIVE (https://origamicreative.com).
-You represent a professional branding and creative agency, NOT Japanese paper folding.
+      content: `You are Rakesh, the AI Brand Strategist for ORIGAMI CREATIVE (https://origamicreative.com).
+You represent a professional branding and creative agency.
 
-RELEVANT KNOWLEDGE FROM DOCUMENTS:
+RELEVANT KNOWLEDGE:
 ${knowledgeContext}
 
 CONVERSATION CONTEXT:
@@ -1407,21 +1434,16 @@ ${conversationContext}
 USER PROFILE:
 ${JSON.stringify(userProfile)}
 
-USER INTENT: ${userIntent}
-
 INSTRUCTIONS:
-- Use the knowledge from documents to provide specific, accurate information
-- Reference real case studies, processes, and pricing when available in knowledge
-- Personalize responses based on user profile and conversation history
-- If user has a company name, mention it naturally
-- If knowledge mentions specific examples or numbers, use them
+- Use the knowledge above to provide specific, accurate information about Origami Creative
+- Reference real case studies, processes, and pricing when available
+- Personalize responses based on user profile
 - Keep responses under 80 words but make them substantive
 - Always sound professional and consultative
+- If knowledge mentions specific examples or numbers, use them
 
-PERSONALIZATION RULES:
-- Reference their company "${userProfile.company || 'your business'}" when relevant
-- Tailor industry examples if industry is known: "${userProfile.industry || ''}"
-- Be more direct about next steps if they seem qualified (mentioned budget/timeline)
+${userProfile.company ? `Reference their company "${userProfile.company}" naturally when relevant.` : ''}
+${userProfile.industry ? `Tailor examples to the ${userProfile.industry} industry.` : ''}
       `,
     },
     { 
@@ -1439,6 +1461,16 @@ PERSONALIZATION RULES:
 
   return response.choices[0].message.content;
 }
+
+// Call this after your Pinecone initialization is complete
+// Add this to your existing server startup sequence
+initializePinecone().then(() => {
+  setTimeout(() => {
+    if (index) {
+      initializeKnowledgeBase();
+    }
+  }, 2000); // Wait 2 seconds for Pinecone to be fully ready
+}).catch(console.error);
 
 // Analytics endpoint for knowledge base performance
 app.get('/knowledge-analytics', async (req, res) => {
