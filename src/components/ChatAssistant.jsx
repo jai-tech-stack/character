@@ -241,7 +241,7 @@ export default function LegalChatAssistant() {
       setOpen(true);
       if (msgs.length === 0) {
         setTimeout(() => {
-          const welcomeMsg = "Hello! I'm Advocate Arjun, your AI legal consultant from Fox Man-dal, one of India's premier law firms. I can help you understand our legal services, discuss your legal needs, or provide general information about Indian law. How can I assist you with your legal matters today?";
+          const welcomeMsg = "Hello! I'm Advocate Arjun, your AI legal consultant from FoxMandal, one of India's premier law firms. I can help you understand our legal services, discuss your legal needs, or provide general information about Indian law. How can I assist you with your legal matters today?";
           setMsgs([{
             from: 'Advocate Arjun',
             text: welcomeMsg,

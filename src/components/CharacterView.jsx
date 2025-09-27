@@ -301,9 +301,9 @@ export default function CharacterView({ onMessage }) {
   const { listen, listening, stop } = useSpeechRecognition({ onResult: handleVoiceCommand });
 
   const hotspotPrompts = {
-    services: "What comprehensive legal services does Fox Man-dal offer to clients in India?",
+    services: "What comprehensive legal services does FoxMandal offer to clients in India?",
     expertise: "Tell me about Fox Man-dal's areas of legal expertise and specialization in Indian law",
-    consultation: "I want to schedule a legal consultation with Fox Man-dal's legal team"
+    consultation: "I want to schedule a legal consultation with FoxMandal legal team"
   };
 
   const modeContexts = {
@@ -430,7 +430,7 @@ export default function CharacterView({ onMessage }) {
       },
       undefined,
       () => { 
-        console.log("Fox Mandal texture not found - using legal blue background");
+        console.log("FoxMandal texture not found - using legal blue background");
         setLoading(false);
       }
     );
@@ -549,7 +549,7 @@ export default function CharacterView({ onMessage }) {
 
   const handleGreetAndListen = async () => {
     // Fixed greeting with proper pronunciation
-    const greeting = "Hello! I'm Advocate Arjun, your AI legal consultant from Fox Man-dal, one of India's premier law firms. I'm here to help you understand our legal services, discuss your legal needs, or provide guidance on Indian law. How can I assist you with your legal matters today?";
+    const greeting = "Hello! I'm Advocate Arjun, your AI legal consultant from FoxMandal, one of India's premier law firms. I'm here to help you understand our legal services, discuss your legal needs, or provide guidance on Indian law. How can I assist you with your legal matters today?";
     
     setAiText(greeting);
     onMessage?.(greeting);
@@ -617,7 +617,7 @@ export default function CharacterView({ onMessage }) {
       <Container ref={container} className={currentMode}>
         <Tooltip>
           {loading 
-            ? "Loading Fox Mandal legal consultation interface..." 
+            ? "Loading FoxMandal legal consultation interface..." 
             : "Click hotspots to explore services or start a conversation with Adv. Arjun"
           }
         </Tooltip>

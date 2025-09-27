@@ -103,7 +103,7 @@ export const getTTS = async (text) => {
         // Fix pronunciation issues
         let processedText = text
           .replace(/Adv\./g, 'Advocate')  // Replace "Adv." with "Advocate"
-          .replace(/Fox Mandal/g, 'Fox Man-dal')  // Proper pronunciation
+          .replace(/FoxMandal/g, 'FoxMandal')  // Proper pronunciation
           .replace(/SEBI/g, 'S-E-B-I')  // Spell out acronyms
           .replace(/NCLT/g, 'N-C-L-T')
           .replace(/NCLAT/g, 'N-C-L-A-T')
