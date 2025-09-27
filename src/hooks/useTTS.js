@@ -1,14 +1,14 @@
 // src/api/chatApi.js
-const API_URL = "https://character-chan.onrender.com";
+const API_BASE_URL = "https://character-chan.onrender.com";
 //import.meta.env.VITE_API_URL || "http://localhost:3001";
 
-console.log('🔍 API_URL being used:', API_URL);
+console.log('🔍 API_BASE_URL being used:', API_BASE_URL);
 
 export async function sendMessage(message, sessionId = null) {
-  console.log('🚀 Calling:', `${API_URL}/chat`);
+  console.log('🚀 Calling:', `${API_BASE_URL}/chat`);
   
   try {
-    const res = await fetch(`${API_URL}/chat`, {
+    const res = await fetch(`${API_BASE_URL}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message, sessionId }),
