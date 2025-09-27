@@ -1,4 +1,4 @@
-// server.js - Foxmandal Legal AI Assistant
+// server.js - Foxmandal Legal AI Assistant with CORS Fix
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
@@ -18,23 +18,55 @@ console.log('⚖️ FOXMANDAL LEGAL AI - ENV CHECK', {
 
 // Express app setup
 const app = express();
-app.use(bodyParser.json());
-app.use(fileUpload({
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB for legal documents
-  useTempFiles: true,
-  tempFileDir: '/tmp/'
-}));
 
+// Enhanced CORS configuration for live deployment
 app.use(cors({
   origin: [
     "http://localhost:5173", 
     "http://localhost:3001",
     "https://foxmandal.in",
     "https://www.foxmandal.in",
-    "https://legal-ai.vercel.app" // Your deployment URL
+    "https://character-kappa.vercel.app",  // Your live frontend URL
+    "https://character-kappa.vercel.app/", // With trailing slash
+    "https://legal-ai.vercel.app"
   ],
-  methods: ["GET", "POST"],
-  credentials: true
+  methods: ["GET", "POST", "OPTIONS"],
+  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  optionsSuccessStatus: 200
+}));
+
+// Preflight handler
+app.use((req, res, next) => {
+  const allowedOrigins = [
+    "http://localhost:5173", 
+    "http://localhost:3001",
+    "https://foxmandal.in",
+    "https://www.foxmandal.in",
+    "https://character-kappa.vercel.app",
+    "https://legal-ai.vercel.app"
+  ];
+  
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+app.use(bodyParser.json());
+app.use(fileUpload({
+  limits: { fileSize: 100 * 1024 * 1024 },
+  useTempFiles: true,
+  tempFileDir: '/tmp/'
 }));
 
 // AI clients
@@ -334,7 +366,7 @@ async function getLegalKnowledge(query, legalArea = null) {
     });
     
     const legalContext = results.matches
-      ?.filter(match => match.score > 0.75) // Higher threshold for legal accuracy
+      ?.filter(match => match.score > 0.75)
       ?.map((match) => {
         const content = match.metadata?.content || '';
         const area = match.metadata?.area || 'general';
@@ -358,7 +390,7 @@ async function generateLegalResponse(message, context) {
   const legalPrompt = [
     {
       role: 'system',
-      content: `You are Aditi, a senior AI legal consultant at Foxmandal, one of India's premier law firms (https://foxmandal.in/).
+      content: `You are Adv. Arjun, a senior AI legal consultant at Foxmandal, one of India's premier law firms (https://foxmandal.in/).
 
 IMPORTANT LEGAL DISCLAIMERS:
 - You provide general legal information, not specific legal advice
@@ -394,7 +426,7 @@ REMEMBER: You represent Foxmandal's commitment to accessible, high-quality legal
   const response = await openai.chat.completions.create({
     model: 'gpt-4',
     messages: legalPrompt,
-    temperature: 0.3, // Lower temperature for legal accuracy
+    temperature: 0.3,
     max_tokens: 180,
   });
 
@@ -403,7 +435,11 @@ REMEMBER: You represent Foxmandal's commitment to accessible, high-quality legal
 
 // Routes
 app.get("/", (req, res) => {
-  res.send("⚖️ Foxmandal Legal AI Assistant is running!");
+  res.json({
+    status: "⚖️ Foxmandal Legal AI Assistant is running!",
+    cors: "Enabled for live deployment",
+    timestamp: new Date().toISOString()
+  });
 });
 
 app.get('/health', (req, res) => {
@@ -419,7 +455,123 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Main legal consultation endpoint
+// Compatibility endpoint for frontend /chat calls
+app.post('/chat', async (req, res) => {
+  const { message, sessionId } = req.body;
+  const startTime = Date.now();
+  
+  console.log(`Chat request from ${req.headers.origin}: ${message?.substring(0, 50)}...`);
+  
+  if (!message || typeof message !== 'string') {
+    return res.status(400).json({ error: 'Invalid or missing message' });
+  }
+
+  try {
+    const legalArea = classifyLegalIntent(message);
+    const urgency = assessUrgency(message);
+    
+    legalAnalytics.trackLegalInteraction(sessionId, {
+      type: 'client_query',
+      content: message,
+      legalArea: legalArea,
+      urgency: urgency,
+      sessionId: sessionId
+    });
+    
+    const legalKnowledge = await getLegalKnowledge(message, legalArea);
+    
+    const reply = await generateLegalResponse(message, {
+      legalArea,
+      urgency,
+      clientProfile: {},
+      legalKnowledge
+    });
+    
+    const shouldCaptureLead = legalArea !== 'general_inquiry' && 
+                             (urgency === 'high' || message.toLowerCase().includes('consultation'));
+    
+    legalAnalytics.trackLegalInteraction(sessionId, {
+      type: 'ai_response',
+      content: reply,
+      legalArea: legalArea,
+      complexity: urgency === 'high' ? 'high' : 'medium',
+      sessionId: sessionId,
+      responseTime: Date.now() - startTime,
+      leadGenerated: shouldCaptureLead
+    });
+    
+    res.json({ 
+      reply, 
+      userProfile: {
+        legalArea,
+        urgency,
+        needsConsultation: shouldCaptureLead
+      }
+    });
+    
+  } catch (err) {
+    console.error('Error in chat:', err);
+    
+    legalAnalytics.trackLegalInteraction(sessionId, {
+      type: 'error',
+      content: err.message,
+      sessionId: sessionId
+    });
+    
+    res.status(500).json({ 
+      error: 'Legal consultation system temporarily unavailable', 
+      details: err.message 
+    });
+  }
+});
+
+// Lead capture endpoint
+app.post('/capture-lead', async (req, res) => {
+  const { name, email, phone, legalArea, urgency, sessionId, leadScore, userProfile } = req.body;
+  
+  console.log(`Lead capture from ${req.headers.origin}: ${name} - ${legalArea}`);
+  
+  if (!name || !email) {
+    return res.status(400).json({ error: 'Name and email are required' });
+  }
+  
+  try {
+    const consultationData = {
+      name,
+      email,
+      phone: phone || 'Not provided',
+      legalArea: legalArea || 'general',
+      urgency: urgency || 'medium',
+      leadScore: leadScore || 0,
+      sessionId,
+      timestamp: new Date().toISOString(),
+      source: 'arjun_ai_chat',
+      status: 'pending'
+    };
+    
+    legalAnalytics.trackConsultation(sessionId, {
+      outcome: 'lead_captured',
+      clientProfile: { name, email, legalArea: legalArea || 'general' }
+    });
+    
+    console.log('Legal consultation lead captured:', consultationData);
+    
+    res.json({ 
+      success: true, 
+      message: 'Thank you! Our legal team will contact you within 24 hours.',
+      consultationId: sessionId
+    });
+    
+  } catch (error) {
+    console.error('Lead capture failed:', error);
+    res.status(500).json({ 
+      error: 'Failed to capture lead', 
+      details: error.message 
+    });
+  }
+});
+
+// Main legal consultation endpoint (for backward compatibility)
 app.post('/legal-consultation', async (req, res) => {
   const { message, sessionId } = req.body;
   const startTime = Date.now();
@@ -429,11 +581,9 @@ app.post('/legal-consultation', async (req, res) => {
   }
 
   try {
-    // Classify legal intent and assess urgency
     const legalArea = classifyLegalIntent(message);
     const urgency = assessUrgency(message);
     
-    // Track legal interaction
     legalAnalytics.trackLegalInteraction(sessionId, {
       type: 'client_query',
       content: message,
@@ -442,10 +592,8 @@ app.post('/legal-consultation', async (req, res) => {
       sessionId: sessionId
     });
     
-    // Get relevant legal knowledge
     const legalKnowledge = await getLegalKnowledge(message, legalArea);
     
-    // Generate legal response
     const reply = await generateLegalResponse(message, {
       legalArea,
       urgency,
@@ -453,11 +601,9 @@ app.post('/legal-consultation', async (req, res) => {
       legalKnowledge
     });
     
-    // Determine if this should generate a consultation lead
     const shouldCaptureLead = legalArea !== 'general_inquiry' && 
                              (urgency === 'high' || message.toLowerCase().includes('consultation'));
     
-    // Track AI response
     legalAnalytics.trackLegalInteraction(sessionId, {
       type: 'ai_response',
       content: reply,
@@ -485,178 +631,9 @@ app.post('/legal-consultation', async (req, res) => {
       sessionId: sessionId
     });
     
-    if (!res.headersSent) {
-      res.status(500).json({ 
-        error: 'Legal consultation system temporarily unavailable', 
-        details: err.message 
-      });
-    }
-  }
-});
-// Add this route to your existing server.js after the /legal-consultation route
-
-// Compatibility endpoint for frontend /chat calls
-app.post('/chat', async (req, res) => {
-  const { message, sessionId } = req.body;
-  const startTime = Date.now();
-  
-  if (!message || typeof message !== 'string') {
-    return res.status(400).json({ error: 'Invalid or missing message' });
-  }
-
-  try {
-    // Classify legal intent and assess urgency
-    const legalArea = classifyLegalIntent(message);
-    const urgency = assessUrgency(message);
-    
-    // Track legal interaction
-    legalAnalytics.trackLegalInteraction(sessionId, {
-      type: 'client_query',
-      content: message,
-      legalArea: legalArea,
-      urgency: urgency,
-      sessionId: sessionId
-    });
-    
-    // Get relevant legal knowledge
-    const legalKnowledge = await getLegalKnowledge(message, legalArea);
-    
-    // Generate legal response
-    const reply = await generateLegalResponse(message, {
-      legalArea,
-      urgency,
-      clientProfile: {},
-      legalKnowledge
-    });
-    
-    // Determine if this should generate a consultation lead
-    const shouldCaptureLead = legalArea !== 'general_inquiry' && 
-                             (urgency === 'high' || message.toLowerCase().includes('consultation'));
-    
-    // Track AI response
-    legalAnalytics.trackLegalInteraction(sessionId, {
-      type: 'ai_response',
-      content: reply,
-      legalArea: legalArea,
-      complexity: urgency === 'high' ? 'high' : 'medium',
-      sessionId: sessionId,
-      responseTime: Date.now() - startTime,
-      leadGenerated: shouldCaptureLead
-    });
-    
-    // Return in format expected by frontend
-    res.json({ 
-      reply, 
-      userProfile: {
-        legalArea,
-        urgency,
-        needsConsultation: shouldCaptureLead
-      }
-    });
-    
-  } catch (err) {
-    console.error('Error in chat:', err);
-    
-    legalAnalytics.trackLegalInteraction(sessionId, {
-      type: 'error',
-      content: err.message,
-      sessionId: sessionId
-    });
-    
-    if (!res.headersSent) {
-      res.status(500).json({ 
-        error: 'Legal consultation system temporarily unavailable', 
-        details: err.message 
-      });
-    }
-  }
-});
-
-// Add lead capture endpoint that frontend expects
-app.post('/capture-lead', async (req, res) => {
-  const { name, email, sessionId, leadScore, userProfile } = req.body;
-  
-  if (!name || !email) {
-    return res.status(400).json({ error: 'Name and email are required' });
-  }
-  
-  try {
-    const consultationData = {
-      name,
-      email,
-      legalArea: userProfile?.legalArea || 'general',
-      urgency: userProfile?.urgency || 'medium',
-      leadScore: leadScore || 0,
-      sessionId,
-      timestamp: new Date().toISOString(),
-      source: 'arjun_ai_chat',
-      status: 'pending'
-    };
-    
-    // Track consultation booking
-    legalAnalytics.trackConsultation(sessionId, {
-      outcome: 'lead_captured',
-      clientProfile: { name, email, legalArea: userProfile?.legalArea }
-    });
-    
-    console.log('Legal consultation lead captured:', { name, email, legalArea: userProfile?.legalArea });
-    
-    res.json({ 
-      success: true, 
-      message: 'Thank you! Our legal team will contact you within 24 hours.',
-      consultationId: sessionId
-    });
-    
-  } catch (error) {
-    console.error('Lead capture failed:', error);
     res.status(500).json({ 
-      error: 'Failed to capture lead', 
-      details: error.message 
-    });
-  }
-});
-// Legal consultation booking
-app.post('/book-consultation', async (req, res) => {
-  const { name, email, phone, legalArea, urgency, message, sessionId } = req.body;
-  
-  if (!name || !email || !phone) {
-    return res.status(400).json({ error: 'Name, email, and phone are required' });
-  }
-  
-  try {
-    const consultationData = {
-      name,
-      email,
-      phone,
-      legalArea: legalArea || 'general',
-      urgency: urgency || 'medium',
-      message: message || '',
-      sessionId,
-      timestamp: new Date().toISOString(),
-      source: 'aditi_ai_consultation',
-      status: 'pending'
-    };
-    
-    // Track consultation booking
-    legalAnalytics.trackConsultation(sessionId, {
-      outcome: 'consultation_booked',
-      clientProfile: { name, email, phone, legalArea }
-    });
-    
-    console.log('Legal consultation booked:', { name, email, legalArea, urgency });
-    
-    res.json({ 
-      success: true, 
-      message: 'Consultation request received. Our legal team will contact you within 24 hours.',
-      consultationId: sessionId,
-      expectedResponse: urgency === 'high' ? '2-4 hours' : '24 hours'
-    });
-    
-  } catch (error) {
-    console.error('Consultation booking failed:', error);
-    res.status(500).json({ 
-      error: 'Failed to book consultation', 
-      details: error.message 
+      error: 'Legal consultation system temporarily unavailable', 
+      details: err.message 
     });
   }
 });
@@ -707,5 +684,6 @@ initializeLegalAI().catch(console.error);
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`⚖️ Foxmandal Legal AI Assistant running on port ${PORT}`);
-  console.log(`📍 Legal consultation endpoint: /legal-consultation`);
+  console.log(`🌐 CORS enabled for live deployment`);
+  console.log(`📍 Endpoints: /chat, /capture-lead, /legal-consultation`);
 });
