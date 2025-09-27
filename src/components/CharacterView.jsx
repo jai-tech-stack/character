@@ -1,4 +1,4 @@
-// src/components/CharacterView.jsx
+// src/components/CharacterView.jsx - Fox Mandal Legal Version
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
@@ -12,8 +12,8 @@ const pulse = keyframes`
   50% { transform: scale(1.1); }
 `;
 const glow = keyframes`
-  0%, 100% { box-shadow: 0 0 20px rgba(231, 76, 60, 0.3); }
-  50% { box-shadow: 0 0 30px rgba(231, 76, 60, 0.8); }
+  0%, 100% { box-shadow: 0 0 20px rgba(184, 115, 51, 0.3); }
+  50% { box-shadow: 0 0 30px rgba(184, 115, 51, 0.8); }
 `;
 
 const GlobalStyles = createGlobalStyle`
@@ -26,12 +26,12 @@ const Container = styled.div`
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
   transition: background 0.8s ease;
   
-  &.branding-mode { background: linear-gradient(135deg, #ff7e5f 0%, #feb47b 100%); }
-  &.strategy-mode { background: linear-gradient(135deg, #2c3e50 0%, #4a6741 100%); }
-  &.creative-mode { background: linear-gradient(135deg, #8360c3 0%, #2ebf91 100%); }
+  &.corporate-mode { background: linear-gradient(135deg, #1e40af 0%, #3730a3 100%); }
+  &.litigation-mode { background: linear-gradient(135deg, #7c2d12 0%, #92400e 100%); }
+  &.consultation-mode { background: linear-gradient(135deg, #b87333 0%, #d97706 100%); }
 `;
 
 const Tooltip = styled.div`
@@ -70,7 +70,7 @@ const ChatBubble = styled.div`
   border-radius: 20px;
   max-width: 400px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(184, 115, 51, 0.3);
   animation: ${fadeIn} 0.5s ease;
   z-index: 90;
 
@@ -86,7 +86,7 @@ const ChatBubble = styled.div`
     margin: 0; 
     font-size: 1rem; 
     line-height: 1.5; 
-    color: #2c3e50;
+    color: #1e40af;
     
     @media (max-width: 768px) {
       font-size: 0.9rem;
@@ -101,7 +101,7 @@ const ChatBubble = styled.div`
     border: none;
     font-size: 1.2rem;
     cursor: pointer;
-    color: #95a5a6;
+    color: #64748b;
     width: 30px;
     height: 30px;
     border-radius: 50%;
@@ -111,8 +111,8 @@ const ChatBubble = styled.div`
     transition: all 0.3s ease;
     
     &:hover { 
-      color: #e74c3c; 
-      background: rgba(231, 76, 60, 0.1);
+      color: #b87333; 
+      background: rgba(184, 115, 51, 0.1);
     }
   }
 `;
@@ -123,9 +123,9 @@ const InteractionButton = styled.button`
   left: 2rem;
   padding: 1rem 2rem;
   border-radius: 50px;
-  background: ${props => props.listening ? '#e74c3c' : 'rgba(255, 255, 255, 0.2)'};
+  background: ${props => props.listening ? '#b87333' : 'rgba(30, 64, 175, 0.9)'};
   color: white;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid rgba(184, 115, 51, 0.3);
   backdrop-filter: blur(20px);
   cursor: pointer;
   font-size: 1rem;
@@ -143,7 +143,7 @@ const InteractionButton = styled.button`
   }
 
   &:hover {
-    background: ${props => props.listening ? '#c0392b' : 'rgba(255, 255, 255, 0.3)'};
+    background: ${props => props.listening ? '#92400e' : 'rgba(30, 64, 175, 1)'};
     box-shadow: 0 8px 25px rgba(0,0,0,0.2);
   }
 
@@ -164,7 +164,7 @@ const ContactForm = styled.div`
   width: 90%;
   max-width: 500px;
   box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(184, 115, 51, 0.2);
   z-index: 200;
   animation: ${fadeIn} 0.5s ease;
 
@@ -178,7 +178,7 @@ const ContactForm = styled.div`
   h3 { 
     margin: 0 0 2rem 0; 
     text-align: center; 
-    color: #2c3e50;
+    color: #1e40af;
     font-size: 1.5rem;
     font-weight: 700;
     
@@ -188,11 +188,11 @@ const ContactForm = styled.div`
     }
   }
 
-  input, textarea {
+  input, textarea, select {
     width: 100%; 
     margin-bottom: 1.5rem; 
     padding: 1rem; 
-    border: 2px solid rgba(0,0,0,0.1);
+    border: 2px solid rgba(30, 64, 175, 0.1);
     border-radius: 12px; 
     font-size: 1rem; 
     background: rgba(255, 255, 255, 0.8);
@@ -200,9 +200,9 @@ const ContactForm = styled.div`
     
     &:focus { 
       outline: none; 
-      border-color: #e74c3c;
+      border-color: #b87333;
       background: white;
-      box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1);
+      box-shadow: 0 0 0 3px rgba(184, 115, 51, 0.1);
     }
     
     @media (max-width: 768px) {
@@ -242,23 +242,23 @@ const ContactForm = styled.div`
     }
     
     &.submit { 
-      background: linear-gradient(45deg, #e74c3c, #c0392b);
+      background: linear-gradient(45deg, #b87333, #92400e);
       color: white; 
-      box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
+      box-shadow: 0 4px 15px rgba(184, 115, 51, 0.3);
       
       &:hover { 
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(231, 76, 60, 0.4);
+        box-shadow: 0 6px 20px rgba(184, 115, 51, 0.4);
       }
     }
     
     &.cancel { 
-      background: rgba(149, 165, 166, 0.2);
-      color: #7f8c8d;
-      border: 2px solid rgba(149, 165, 166, 0.3);
+      background: rgba(100, 116, 139, 0.2);
+      color: #475569;
+      border: 2px solid rgba(100, 116, 139, 0.3);
       
       &:hover { 
-        background: rgba(149, 165, 166, 0.3);
+        background: rgba(100, 116, 139, 0.3);
         transform: translateY(-2px);
       }
     }
@@ -294,24 +294,31 @@ export default function CharacterView({ onMessage }) {
   const [showContactForm, setShowContactForm] = useState(false);
   const [currentMode, setCurrentMode] = useState('default');
   const [hotspotInfo, setHotspotInfo] = useState("");
-  const [formData, setFormData] = useState({ name: "", email: "", message: "" });
+  const [formData, setFormData] = useState({ 
+    name: "", 
+    email: "", 
+    phone: "",
+    legalArea: "corporate",
+    urgency: "medium",
+    message: "" 
+  });
   const { listen, listening, stop } = useSpeechRecognition({ onResult: handleVoiceCommand });
 
   const hotspotPrompts = {
-    history: "Tell me about Origami Creative's history and background",
-    services: "What comprehensive services does Origami Creative offer to clients?",
-    contact: "I want to connect with the Origami Creative team for my project"
+    services: "What comprehensive legal services does Fox Mandal offer to clients?",
+    expertise: "Tell me about Fox Mandal's areas of legal expertise and specialization",
+    consultation: "I want to schedule a legal consultation with Fox Mandal"
   };
 
   const modeContexts = {
-    history: 'strategy-mode',
-    services: 'creative-mode', 
-    contact: 'branding-mode'
+    services: 'corporate-mode',
+    expertise: 'litigation-mode', 
+    consultation: 'consultation-mode'
   };
 
   async function handleVoiceCommand(text) {
     if (!text?.trim()) return;
-    setAiText("Processing your request...");
+    setAiText("Analyzing your legal query...");
     setHotspotInfo("");
 
     try {
@@ -321,18 +328,18 @@ export default function CharacterView({ onMessage }) {
       
       // Determine interaction mode based on response
       const lowerReply = reply.toLowerCase();
-      if (lowerReply.includes('contact') || lowerReply.includes('reach out')) {
-        setCurrentMode('branding-mode');
+      if (lowerReply.includes('consultation') || lowerReply.includes('legal advice')) {
+        setCurrentMode('consultation-mode');
         setTimeout(() => setShowContactForm(true), 2000);
-      } else if (lowerReply.includes('service') || lowerReply.includes('creative')) {
-        setCurrentMode('creative-mode');
-      } else if (lowerReply.includes('strategy') || lowerReply.includes('brand')) {
-        setCurrentMode('strategy-mode');
+      } else if (lowerReply.includes('corporate') || lowerReply.includes('litigation')) {
+        setCurrentMode('corporate-mode');
+      } else if (lowerReply.includes('expertise') || lowerReply.includes('specialization')) {
+        setCurrentMode('litigation-mode');
       }
       
       await speakAndListen(reply);
     } catch (err) {
-      console.error("Chat error:", err);
+      console.error("Legal consultation error:", err);
       setAiText("I'm experiencing connectivity issues. Please try again in a moment.");
     }
   }
@@ -350,7 +357,7 @@ export default function CharacterView({ onMessage }) {
     setTimeout(() => listen({ interimResults: false }), 1000);
   }, [stop, listen]);
 
-  // Enhanced THREE.js scene with better lighting and effects
+  // Enhanced THREE.js scene with legal theme
   useEffect(() => {
     const el = container.current;
     const scene = new THREE.Scene();
@@ -381,7 +388,7 @@ export default function CharacterView({ onMessage }) {
 
     const geometry = new THREE.PlaneGeometry(2.5, 1.8);
     let material = new THREE.MeshLambertMaterial({ 
-      color: 0x2c3e50, 
+      color: 0x1e40af, 
       transparent: true, 
       opacity: 0.9 
     });
@@ -391,7 +398,7 @@ export default function CharacterView({ onMessage }) {
 
     const textureLoader = new THREE.TextureLoader();
     textureLoader.load(
-      "/origami-screenshot.jpg",
+      "/foxmandal-screenshot.jpg", // You'll need to add this image
       (texture) => { 
         plane.material = new THREE.MeshLambertMaterial({ map: texture });
         setLoading(false);
@@ -405,23 +412,23 @@ export default function CharacterView({ onMessage }) {
       }
     );
 
-    // Enhanced hotspots with better positioning for mobile
+    // Enhanced hotspots for legal services
     const hotspotCoords = { 
-      history: [0.8, 0.4, 0.01], 
-      services: [-0.8, 0.3, 0.01], 
-      contact: [0, -0.5, 0.01] 
+      services: [0.8, 0.4, 0.01], 
+      expertise: [-0.8, 0.3, 0.01], 
+      consultation: [0, -0.5, 0.01] 
     };
     const hotspots = {};
 
     Object.entries(hotspotCoords).forEach(([key, pos]) => {
-      // Main hotspot sphere
+      // Main hotspot sphere with legal gold color
       const sphere = new THREE.Mesh(
         new THREE.SphereGeometry(0.06, 32, 32),
         new THREE.MeshLambertMaterial({ 
-          color: 0xe74c3c, 
+          color: 0xb87333, 
           transparent: true, 
           opacity: 0.9,
-          emissive: 0xe74c3c,
+          emissive: 0xb87333,
           emissiveIntensity: 0.2
         })
       );
@@ -435,7 +442,7 @@ export default function CharacterView({ onMessage }) {
       const ring = new THREE.Mesh(
         new THREE.RingGeometry(0.08, 0.12, 32),
         new THREE.MeshLambertMaterial({ 
-          color: 0xe74c3c, 
+          color: 0xb87333, 
           transparent: true, 
           opacity: 0.4 
         })
@@ -518,22 +525,29 @@ export default function CharacterView({ onMessage }) {
   }, []);
 
   const handleGreetAndListen = async () => {
-    const greeting = "Hello! I'm Rakesh, your AI brand strategist from Origami Creative. I'm here to help you explore our services, discuss your branding needs, or answer any questions. What would you like to know?";
+    const greeting = "Hello! I'm Adv. Arjun, your AI legal consultant from Fox Mandal, one of India's premier law firms. I'm here to help you understand our legal services, discuss your legal needs, or answer questions about Indian law. How can I assist you today?";
     setAiText(greeting);
     onMessage?.(greeting);
     await speakAndListen(greeting);
   };
 
   const handleFormSubmit = () => {
-    if (!formData.name?.trim() || !formData.email?.trim()) {
-      alert("Please fill in your name and email address");
+    if (!formData.name?.trim() || !formData.email?.trim() || !formData.phone?.trim()) {
+      alert("Please fill in your name, email, and phone number");
       return;
     }
     
-    console.log("Lead captured:", formData);
+    console.log("Legal consultation request:", formData);
     setShowContactForm(false);
-    setAiText("Thank you for your interest! Our team will reach out to you within 24 hours to discuss your project.");
-    setFormData({ name: "", email: "", message: "" });
+    setAiText("Thank you for your interest! Our legal team will contact you within 24 hours to schedule your consultation.");
+    setFormData({ 
+      name: "", 
+      email: "", 
+      phone: "",
+      legalArea: "corporate",
+      urgency: "medium",
+      message: "" 
+    });
     setCurrentMode('default');
   };
 
@@ -543,8 +557,8 @@ export default function CharacterView({ onMessage }) {
       <Container ref={container} className={currentMode}>
         <Tooltip>
           {loading 
-            ? "Loading interactive experience..." 
-            : "Click hotspots to explore or start a conversation with Rakesh"
+            ? "Loading legal consultation interface..." 
+            : "Click hotspots to explore services or start a conversation with Adv. Arjun"
           }
         </Tooltip>
 
@@ -552,7 +566,7 @@ export default function CharacterView({ onMessage }) {
           listening={listening}
           onClick={() => listening ? stop() : handleGreetAndListen()}
         >
-          {listening ? '🛑 Stop Listening' : '🤖 Talk to Rakesh'}
+          {listening ? '⚖️ Stop Listening' : '🏛️ Talk to Adv. Arjun'}
         </InteractionButton>
 
         {aiText && (
@@ -570,7 +584,7 @@ export default function CharacterView({ onMessage }) {
 
         {showContactForm && (
           <ContactForm>
-            <h3>Connect with Origami Creative</h3>
+            <h3>Schedule Legal Consultation</h3>
             <input 
               placeholder="Your full name" 
               value={formData.name} 
@@ -582,14 +596,40 @@ export default function CharacterView({ onMessage }) {
               value={formData.email} 
               onChange={e => setFormData({...formData, email: e.target.value})}
             />
+            <input 
+              placeholder="Phone number" 
+              type="tel" 
+              value={formData.phone} 
+              onChange={e => setFormData({...formData, phone: e.target.value})}
+            />
+            <select 
+              value={formData.legalArea} 
+              onChange={e => setFormData({...formData, legalArea: e.target.value})}
+            >
+              <option value="corporate">Corporate Law</option>
+              <option value="litigation">Litigation</option>
+              <option value="ip">Intellectual Property</option>
+              <option value="employment">Employment Law</option>
+              <option value="real_estate">Real Estate</option>
+              <option value="tax">Tax Law</option>
+              <option value="other">Other</option>
+            </select>
+            <select 
+              value={formData.urgency} 
+              onChange={e => setFormData({...formData, urgency: e.target.value})}
+            >
+              <option value="low">General inquiry</option>
+              <option value="medium">Within a week</option>
+              <option value="high">Urgent (ASAP)</option>
+            </select>
             <textarea 
-              placeholder="Tell us about your project or branding needs..." 
+              placeholder="Briefly describe your legal matter..." 
               value={formData.message} 
               onChange={e => setFormData({...formData, message: e.target.value})}
             />
             <div className="buttons">
               <button className="btn submit" onClick={handleFormSubmit}>
-                Send Message
+                Request Consultation
               </button>
               <button className="btn cancel" onClick={() => setShowContactForm(false)}>
                 Cancel

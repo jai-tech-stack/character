@@ -1,6 +1,4 @@
-// Enhanced Frontend with Smart Lead Capture
-// Update your existing ChatAssistant.jsx with these enhancements
-
+// Enhanced Legal Chat Assistant for Fox Mandal
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import styled, { keyframes } from "styled-components";
 import { useSpeechRecognition } from "react-speech-kit";
@@ -27,8 +25,8 @@ const ChatBtn = styled.button`
   bottom: 2rem;
   right: 2rem;
   background: ${props => props.listening ? 
-    'linear-gradient(45deg, #e74c3c, #c0392b)' : 
-    'linear-gradient(45deg, #3498db, #2980b9)'
+    'linear-gradient(45deg, #b87333, #92400e)' : 
+    'linear-gradient(45deg, #1e40af, #1e3a8a)'
   };
   border: none;
   border-radius: 50%;
@@ -62,8 +60,8 @@ const ChatBtn = styled.button`
     inset: -3px;
     border-radius: 50%;
     background: ${props => props.listening ? 
-      'linear-gradient(45deg, #e74c3c, #c0392b)' : 
-      'linear-gradient(45deg, #3498db, #2980b9)'
+      'linear-gradient(45deg, #b87333, #92400e)' : 
+      'linear-gradient(45deg, #1e40af, #1e3a8a)'
     };
     opacity: 0.3;
     z-index: -1;
@@ -83,7 +81,7 @@ const ChatBox = styled.div`
   max-height: 600px;
   border-radius: 20px;
   box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(184, 115, 51, 0.2);
   z-index: 999;
   animation: ${slideIn} 0.4s ease-out;
   overflow: hidden;
@@ -98,7 +96,7 @@ const ChatBox = styled.div`
 `;
 
 const ChatHeader = styled.div`
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
   color: white;
   padding: 1rem 1.5rem;
   display: flex;
@@ -123,7 +121,7 @@ const ChatHeader = styled.div`
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: ${props => props.listening ? '#e74c3c' : '#2ecc71'};
+    background: ${props => props.listening ? '#b87333' : '#10b981'};
     animation: ${props => props.listening ? pulse : 'none'} 1s infinite;
   }
 `;
@@ -166,7 +164,7 @@ const Message = styled.div`
   .sender {
     font-weight: 600;
     font-size: 0.85rem;
-    color: ${props => props.isUser ? '#3498db' : '#e74c3c'};
+    color: ${props => props.isUser ? '#1e40af' : '#b87333'};
   }
   
   .timestamp {
@@ -176,14 +174,14 @@ const Message = styled.div`
   
   .content {
     background: ${props => props.isUser ? 
-      'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)' : 
-      'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)'
+      'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)' : 
+      'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)'
     };
     padding: 0.8rem 1rem;
     border-radius: 15px;
     font-size: 0.9rem;
     line-height: 1.4;
-    color: #333;
+    color: #374151;
     margin-left: ${props => props.isUser ? '2rem' : '0'};
     margin-right: ${props => props.isUser ? '0' : '2rem'};
     position: relative;
@@ -196,7 +194,7 @@ const Message = styled.div`
       width: 0;
       height: 0;
       border: 8px solid transparent;
-      border-${props => props.isUser ? 'left' : 'right'}-color: ${props => props.isUser ? '#bbdefb' : '#ffe0b2'};
+      border-${props => props.isUser ? 'left' : 'right'}-color: ${props => props.isUser ? '#bfdbfe' : '#fde68a'};
     }
   }
 `;
@@ -220,7 +218,7 @@ const TypingIndicator = styled.div`
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #999;
+    background: #b87333;
     animation: ${pulse} 1.4s infinite;
     
     &:nth-child(1) { animation-delay: 0s; }
@@ -230,7 +228,7 @@ const TypingIndicator = styled.div`
 `;
 
 const LeadCapturePrompt = styled.div`
-  background: linear-gradient(135deg, #ff7e5f 0%, #feb47b 100%);
+  background: linear-gradient(135deg, #b87333 0%, #92400e 100%);
   color: white;
   padding: 1rem;
   margin: 0.5rem 0;
@@ -252,6 +250,7 @@ const LeadCapturePrompt = styled.div`
     display: flex;
     gap: 0.5rem;
     justify-content: center;
+    flex-wrap: wrap;
   }
   
   .lead-btn {
@@ -278,31 +277,33 @@ const QuickLeadForm = styled.div`
   .form-title {
     font-weight: 600;
     margin-bottom: 1rem;
-    color: #2c3e50;
+    color: #1e40af;
   }
   
   .form-row {
     display: flex;
     gap: 0.5rem;
     margin-bottom: 0.5rem;
+    flex-wrap: wrap;
   }
   
-  input {
+  input, select {
     flex: 1;
     padding: 0.6rem;
-    border: 1px solid #ddd;
+    border: 1px solid #d1d5db;
     border-radius: 8px;
     font-size: 0.85rem;
+    min-width: 120px;
     
     &:focus {
       outline: none;
-      border-color: #3498db;
-      box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
+      border-color: #b87333;
+      box-shadow: 0 0 0 2px rgba(184, 115, 51, 0.1);
     }
   }
   
   .submit-btn {
-    background: linear-gradient(45deg, #3498db, #2980b9);
+    background: linear-gradient(45deg, #b87333, #92400e);
     color: white;
     border: none;
     padding: 0.6rem 1.2rem;
@@ -310,10 +311,12 @@ const QuickLeadForm = styled.div`
     cursor: pointer;
     font-weight: 600;
     transition: all 0.3s ease;
+    width: 100%;
+    margin-top: 0.5rem;
     
     &:hover {
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+      box-shadow: 0 4px 12px rgba(184, 115, 51, 0.3);
     }
     
     &:disabled {
@@ -350,14 +353,14 @@ const CloseButton = styled.button`
   }
 `;
 
-// Smart Lead Capture Logic
-class SmartLeadCapture {
+// Smart Legal Lead Capture Logic
+class SmartLegalCapture {
   constructor() {
     this.triggers = {
-      pricing: ['price', 'cost', 'budget', 'expensive', 'investment', 'quote'],
-      contact: ['contact', 'call', 'meet', 'talk', 'discuss', 'consultation'],
-      interest: ['interested', 'sounds good', 'tell me more', 'yes', 'definitely'],
-      urgency: ['urgent', 'asap', 'soon', 'quickly', 'deadline', 'launch']
+      consultation: ['consultation', 'legal advice', 'lawyer', 'attorney', 'help me', 'need legal'],
+      urgency: ['urgent', 'asap', 'emergency', 'court date', 'deadline', 'immediately'],
+      specific_legal: ['contract', 'lawsuit', 'dispute', 'litigation', 'corporate', 'IP', 'employment'],
+      pricing: ['cost', 'fee', 'price', 'charges', 'how much', 'expensive']
     };
     
     this.leadScore = 0;
@@ -370,29 +373,36 @@ class SmartLeadCapture {
     let shouldPromptCapture = false;
     let captureReason = '';
     
-    // Check triggers
     Object.entries(this.triggers).forEach(([category, keywords]) => {
       const matches = keywords.filter(keyword => lowerMessage.includes(keyword));
       if (matches.length > 0) {
         this.leadScore += matches.length * 10;
         this.triggerCount++;
         
-        if (category === 'pricing' || category === 'contact') {
+        if (category === 'consultation' || category === 'urgency') {
           shouldPromptCapture = true;
           captureReason = category;
         }
       }
     });
     
-    // Extract company info
-    const companyMatch = message.match(/(?:my company|we are|I work at|company called)\s+(.+?)[\.\,\!]/i);
-    if (companyMatch) {
-      this.userProfile.company = companyMatch[1].trim();
-      this.leadScore += 15;
-    }
+    // Extract legal area
+    const legalAreas = {
+      'corporate': ['company', 'business', 'corporate', 'merger'],
+      'litigation': ['court', 'lawsuit', 'dispute', 'sue'],
+      'contracts': ['contract', 'agreement', 'terms'],
+      'employment': ['employee', 'workplace', 'termination'],
+      'ip': ['trademark', 'patent', 'copyright', 'intellectual property']
+    };
     
-    // Check for high engagement
-    if (this.triggerCount >= 3 && this.leadScore > 30) {
+    Object.entries(legalAreas).forEach(([area, keywords]) => {
+      if (keywords.some(keyword => lowerMessage.includes(keyword))) {
+        this.userProfile.legalArea = area;
+        this.leadScore += 15;
+      }
+    });
+    
+    if (this.triggerCount >= 2 && this.leadScore > 25) {
       shouldPromptCapture = true;
       captureReason = 'high_engagement';
     }
@@ -407,25 +417,31 @@ class SmartLeadCapture {
   
   getPromptMessage(reason) {
     const messages = {
-      pricing: "I'd love to provide you with detailed pricing information! Mind sharing your contact details so I can send you a custom quote?",
-      contact: "Let's schedule a proper discussion about your project! Can you share your contact information?",
-      high_engagement: "You seem really interested in working with us! Let's connect you with our team - what's the best way to reach you?"
+      consultation: "I'd be happy to connect you with our legal team for a consultation. What's the best way to reach you?",
+      urgency: "For urgent legal matters, let's get you connected with our attorneys immediately. Can you share your contact details?",
+      high_engagement: "It sounds like you could benefit from professional legal guidance. Would you like to schedule a consultation with our team?"
     };
     
     return messages[reason] || messages.high_engagement;
   }
 }
 
-export default function EnhancedChatAssistant() {
+export default function LegalChatAssistant() {
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState([]);
   const [sessionId] = useState(() => uuidv4());
   const [isTyping, setIsTyping] = useState(false);
   const [showLeadCapture, setShowLeadCapture] = useState(false);
-  const [leadData, setLeadData] = useState({ name: '', email: '' });
+  const [leadData, setLeadData] = useState({ 
+    name: '', 
+    email: '', 
+    phone: '',
+    legalArea: 'corporate',
+    urgency: 'medium'
+  });
   const [isSubmittingLead, setIsSubmittingLead] = useState(false);
   
-  const smartCapture = useRef(new SmartLeadCapture());
+  const smartCapture = useRef(new SmartLegalCapture());
   const messagesEndRef = useRef(null);
   const { listen, listening, stop } = useSpeechRecognition({ onResult: handleUser });
 
@@ -454,14 +470,13 @@ export default function EnhancedChatAssistant() {
     setIsTyping(true);
 
     try {
-      // Analyze for lead capture opportunity
       const analysis = smartCapture.current.analyzeMessage(text);
       
       const { reply, userProfile } = await sendMessage(text, sessionId);
       
       setIsTyping(false);
       setMsgs(prev => [...prev, { 
-        from: 'Rakesh', 
+        from: 'Adv. Arjun', 
         text: reply, 
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         id: uuidv4(),
@@ -471,7 +486,6 @@ export default function EnhancedChatAssistant() {
         } : null
       }]);
 
-      // Merge any backend user profile data
       if (userProfile && Object.keys(userProfile).length > 0) {
         smartCapture.current.userProfile = { ...smartCapture.current.userProfile, ...userProfile };
       }
@@ -484,10 +498,10 @@ export default function EnhancedChatAssistant() {
       }
 
     } catch (err) {
-      console.error("Chat error:", err);
+      console.error("Legal chat error:", err);
       setIsTyping(false);
       setMsgs(prev => [...prev, { 
-        from: 'Rakesh', 
+        from: 'Adv. Arjun', 
         text: "I'm experiencing connectivity issues. Please try again in a moment.", 
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         id: uuidv4()
@@ -497,14 +511,11 @@ export default function EnhancedChatAssistant() {
 
   const handleLeadCapture = (show) => {
     setShowLeadCapture(show);
-    if (show) {
-      // Pre-fill with any extracted company info
-      if (smartCapture.current.userProfile.company) {
-        setLeadData(prev => ({ 
-          ...prev, 
-          company: smartCapture.current.userProfile.company 
-        }));
-      }
+    if (show && smartCapture.current.userProfile.legalArea) {
+      setLeadData(prev => ({ 
+        ...prev, 
+        legalArea: smartCapture.current.userProfile.legalArea 
+      }));
     }
   };
 
@@ -523,6 +534,9 @@ export default function EnhancedChatAssistant() {
         body: JSON.stringify({
           name: leadData.name,
           email: leadData.email,
+          phone: leadData.phone,
+          legalArea: leadData.legalArea,
+          urgency: leadData.urgency,
           sessionId: sessionId,
           leadScore: smartCapture.current.leadScore,
           userProfile: smartCapture.current.userProfile
@@ -535,7 +549,7 @@ export default function EnhancedChatAssistant() {
         setShowLeadCapture(false);
         setMsgs(prev => [...prev, {
           from: 'System',
-          text: 'Perfect! Our team will reach out within 24 hours. Is there anything else you\'d like to know about our services?',
+          text: 'Perfect! Our legal team will contact you within 24 hours to discuss your matter. Is there anything else about our services you\'d like to know?',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           id: uuidv4()
         }]);
@@ -555,8 +569,8 @@ export default function EnhancedChatAssistant() {
       if (msgs.length === 0) {
         setTimeout(() => {
           setMsgs([{
-            from: 'Rakesh',
-            text: "Hi! I'm Rakesh, your AI brand strategist. I can help you understand our services, see our portfolio, or discuss your branding needs. What interests you most?",
+            from: 'Adv. Arjun',
+            text: "Hello! I'm Adv. Arjun, your AI legal consultant from Fox Mandal. I can help you understand our legal services, discuss your legal needs, or provide general information about Indian law. How can I assist you today?",
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             id: uuidv4()
           }]);
@@ -571,8 +585,7 @@ export default function EnhancedChatAssistant() {
     setOpen(false);
     stop();
     
-    // Log session data
-    console.log('Session ended:', {
+    console.log('Legal consultation session ended:', {
       sessionId,
       leadScore: smartCapture.current.leadScore,
       userProfile: smartCapture.current.userProfile,
@@ -586,7 +599,7 @@ export default function EnhancedChatAssistant() {
         <ChatBox>
           <ChatHeader listening={listening}>
             <div>
-              <h3>Chat with Rakesh</h3>
+              <h3>Chat with Adv. Arjun</h3>
               <div className="status">
                 <div className="status-dot"></div>
                 {listening ? 'Listening...' : 'Ready to help'}
@@ -608,20 +621,20 @@ export default function EnhancedChatAssistant() {
                 
                 {msg.leadCapture && !showLeadCapture && (
                   <LeadCapturePrompt>
-                    <div className="lead-title">Let's connect!</div>
+                    <div className="lead-title">Legal Consultation Available</div>
                     <div className="lead-subtitle">{msg.leadCapture.message}</div>
                     <div className="lead-buttons">
                       <button 
                         className="lead-btn"
                         onClick={() => handleLeadCapture(true)}
                       >
-                        Yes, let's talk!
+                        Yes, schedule consultation
                       </button>
                       <button 
                         className="lead-btn"
-                        onClick={() => handleUser("I'd like to know more first")}
+                        onClick={() => handleUser("Tell me more about your services first")}
                       >
-                        Tell me more first
+                        More information first
                       </button>
                     </div>
                   </LeadCapturePrompt>
@@ -631,7 +644,7 @@ export default function EnhancedChatAssistant() {
             
             {isTyping && (
               <TypingIndicator>
-                <span>Rakesh is thinking</span>
+                <span>Adv. Arjun is analyzing...</span>
                 <div className="dots">
                   <div className="dot"></div>
                   <div className="dot"></div>
@@ -645,7 +658,7 @@ export default function EnhancedChatAssistant() {
           
           {showLeadCapture && (
             <QuickLeadForm>
-              <div className="form-title">Let's get you connected!</div>
+              <div className="form-title">Schedule Your Legal Consultation</div>
               <div className="form-row">
                 <input
                   placeholder="Your name"
@@ -660,16 +673,43 @@ export default function EnhancedChatAssistant() {
                 />
               </div>
               <div className="form-row">
-                <button 
-                  className="submit-btn"
-                  onClick={submitLead}
-                  disabled={isSubmittingLead}
+                <input
+                  placeholder="Phone number"
+                  type="tel"
+                  value={leadData.phone}
+                  onChange={(e) => setLeadData({...leadData, phone: e.target.value})}
+                />
+                <select
+                  value={leadData.legalArea}
+                  onChange={(e) => setLeadData({...leadData, legalArea: e.target.value})}
                 >
-                  {isSubmittingLead ? 'Submitting...' : 'Connect with our team'}
-                </button>
+                  <option value="corporate">Corporate Law</option>
+                  <option value="litigation">Litigation</option>
+                  <option value="contracts">Contract Law</option>
+                  <option value="ip">Intellectual Property</option>
+                  <option value="employment">Employment Law</option>
+                  <option value="other">Other</option>
+                </select>
               </div>
+              <div className="form-row">
+                <select
+                  value={leadData.urgency}
+                  onChange={(e) => setLeadData({...leadData, urgency: e.target.value})}
+                >
+                  <option value="low">General inquiry</option>
+                  <option value="medium">Within a week</option>
+                  <option value="high">Urgent matter</option>
+                </select>
+              </div>
+              <button 
+                className="submit-btn"
+                onClick={submitLead}
+                disabled={isSubmittingLead}
+              >
+                {isSubmittingLead ? 'Scheduling...' : 'Schedule Consultation'}
+              </button>
               <div className="privacy-note">
-                We respect your privacy and will only use this to contact you about your project.
+                Your information is confidential and protected by attorney-client privilege principles.
               </div>
             </QuickLeadForm>
           )}
@@ -679,9 +719,9 @@ export default function EnhancedChatAssistant() {
       <ChatBtn 
         listening={listening}
         onClick={toggleRecording}
-        title={listening ? "Stop listening" : "Start voice chat"}
+        title={listening ? "Stop listening" : "Start legal consultation"}
       >
-        {listening ? '🔊' : '💬'}
+        {listening ? '🔊' : '⚖️'}
       </ChatBtn>
     </>
   );
