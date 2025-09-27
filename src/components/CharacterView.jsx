@@ -1,7 +1,6 @@
-// src/components/CharacterView.jsx - Fox Mandal Legal Version
+// src/components/CharacterView.jsx - Fox Mandal Legal Live Version
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import styled, { keyframes, createGlobalStyle } from "styled-components";
 import { useSpeechRecognition } from "react-speech-kit";
 import { sendMessage, getTTS } from "../api/chatApi";
@@ -10,10 +9,6 @@ const fadeIn = keyframes`from { opacity:0 } to { opacity:1 }`;
 const pulse = keyframes`
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.1); }
-`;
-const glow = keyframes`
-  0%, 100% { box-shadow: 0 0 20px rgba(184, 115, 51, 0.3); }
-  50% { box-shadow: 0 0 30px rgba(184, 115, 51, 0.8); }
 `;
 
 const GlobalStyles = createGlobalStyle`
@@ -298,16 +293,16 @@ export default function CharacterView({ onMessage }) {
     name: "", 
     email: "", 
     phone: "",
-    legalArea: "corporate",
+    legalArea: "corporate_law",
     urgency: "medium",
     message: "" 
   });
   const { listen, listening, stop } = useSpeechRecognition({ onResult: handleVoiceCommand });
 
   const hotspotPrompts = {
-    services: "What comprehensive legal services does Fox Mandal offer to clients?",
-    expertise: "Tell me about Fox Mandal's areas of legal expertise and specialization",
-    consultation: "I want to schedule a legal consultation with Fox Mandal"
+    services: "What comprehensive legal services does Fox Mandal offer to clients in India?",
+    expertise: "Tell me about Fox Mandal's areas of legal expertise and specialization in Indian law",
+    consultation: "I want to schedule a legal consultation with Fox Mandal's team"
   };
 
   const modeContexts = {
@@ -328,19 +323,20 @@ export default function CharacterView({ onMessage }) {
       
       // Determine interaction mode based on response
       const lowerReply = reply.toLowerCase();
-      if (lowerReply.includes('consultation') || lowerReply.includes('legal advice')) {
+      if (lowerReply.includes('consultation') || lowerReply.includes('legal advice') || lowerReply.includes('schedule')) {
         setCurrentMode('consultation-mode');
         setTimeout(() => setShowContactForm(true), 2000);
-      } else if (lowerReply.includes('corporate') || lowerReply.includes('litigation')) {
+      } else if (lowerReply.includes('corporate') || lowerReply.includes('business')) {
         setCurrentMode('corporate-mode');
-      } else if (lowerReply.includes('expertise') || lowerReply.includes('specialization')) {
+      } else if (lowerReply.includes('litigation') || lowerReply.includes('court') || lowerReply.includes('dispute')) {
         setCurrentMode('litigation-mode');
       }
       
       await speakAndListen(reply);
     } catch (err) {
       console.error("Legal consultation error:", err);
-      setAiText("I'm experiencing connectivity issues. Please try again in a moment.");
+      setAiText("I'm experiencing connectivity issues with our legal system. Please try again in a moment or use the contact form below.");
+      setTimeout(() => setShowContactForm(true), 2000);
     }
   }
 
@@ -357,7 +353,7 @@ export default function CharacterView({ onMessage }) {
     setTimeout(() => listen({ interimResults: false }), 1000);
   }, [stop, listen]);
 
-  // Enhanced THREE.js scene with legal theme
+  // Enhanced THREE.js scene
   useEffect(() => {
     const el = container.current;
     const scene = new THREE.Scene();
@@ -371,13 +367,17 @@ export default function CharacterView({ onMessage }) {
     const camera = new THREE.PerspectiveCamera(65, el.clientWidth / el.clientHeight, 0.1, 500);
     camera.position.set(0, 0, 2.5);
     
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.maxDistance = 5;
-    controls.minDistance = 1;
+    // Orbit controls would need to be imported from a CDN
+    // For now, we'll use basic mouse interaction
+    let mouseX = 0, mouseY = 0;
+    
+    const onMouseMove = (event) => {
+      mouseX = (event.clientX - window.innerWidth / 2) / 100;
+      mouseY = (event.clientY - window.innerHeight / 2) / 100;
+    };
+    window.addEventListener('mousemove', onMouseMove);
 
-    // Enhanced lighting setup
+    // Lighting setup
     const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
     scene.add(ambientLight);
     
@@ -386,6 +386,7 @@ export default function CharacterView({ onMessage }) {
     directionalLight.castShadow = true;
     scene.add(directionalLight);
 
+    // Main display plane
     const geometry = new THREE.PlaneGeometry(2.5, 1.8);
     let material = new THREE.MeshLambertMaterial({ 
       color: 0x1e40af, 
@@ -396,23 +397,22 @@ export default function CharacterView({ onMessage }) {
     plane.receiveShadow = true;
     scene.add(plane);
 
+    // Try to load Fox Mandal texture (fallback if not available)
     const textureLoader = new THREE.TextureLoader();
     textureLoader.load(
-      "/foxmandal-screenshot.jpg", // You'll need to add this image
+      "/foxmandal-screenshot.jpg",
       (texture) => { 
         plane.material = new THREE.MeshLambertMaterial({ map: texture });
         setLoading(false);
-        animate();
       },
       undefined,
       () => { 
-        console.log("Texture load failed - using fallback");
+        console.log("Fox Mandal texture not found - using legal blue background");
         setLoading(false);
-        animate();
       }
     );
 
-    // Enhanced hotspots for legal services
+    // Legal service hotspots
     const hotspotCoords = { 
       services: [0.8, 0.4, 0.01], 
       expertise: [-0.8, 0.3, 0.01], 
@@ -421,7 +421,6 @@ export default function CharacterView({ onMessage }) {
     const hotspots = {};
 
     Object.entries(hotspotCoords).forEach(([key, pos]) => {
-      // Main hotspot sphere with legal gold color
       const sphere = new THREE.Mesh(
         new THREE.SphereGeometry(0.06, 32, 32),
         new THREE.MeshLambertMaterial({ 
@@ -438,7 +437,6 @@ export default function CharacterView({ onMessage }) {
       scene.add(sphere);
       hotspots[key] = sphere;
 
-      // Animated ring
       const ring = new THREE.Mesh(
         new THREE.RingGeometry(0.08, 0.12, 32),
         new THREE.MeshLambertMaterial({ 
@@ -472,21 +470,21 @@ export default function CharacterView({ onMessage }) {
         setHotspotInfo(`Exploring: ${hotspotName.toUpperCase()}`);
         
         handleVoiceCommand(hotspotPrompts[hotspotName] || hotspotName);
-        
-        // Smooth camera animation to hotspot
-        controls.target.copy(hit.object.position);
-        camera.position.z = 2;
-        controls.update();
       }
     }
 
-    // Touch and mouse events
     window.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("touchstart", onPointerDown);
 
     function animate() {
       const time = Date.now() * 0.002;
       
+      // Camera movement based on mouse
+      camera.position.x += (mouseX - camera.position.x) * 0.05;
+      camera.position.y += (-mouseY - camera.position.y) * 0.05;
+      camera.lookAt(scene.position);
+      
+      // Animate hotspots
       Object.entries(hotspots).forEach(([key, obj]) => {
         if (key.includes("_ring")) {
           const scale = 1 + 0.15 * Math.sin(time * 2);
@@ -498,10 +496,11 @@ export default function CharacterView({ onMessage }) {
         }
       });
       
-      controls.update();
       renderer.render(scene, camera);
       requestAnimationFrame(animate);
     }
+
+    animate();
 
     const onResize = () => {
       const w = el.clientWidth;
@@ -517,6 +516,7 @@ export default function CharacterView({ onMessage }) {
       window.removeEventListener("resize", onResize);
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("touchstart", onPointerDown);
+      window.removeEventListener('mousemove', onMouseMove);
       if (el.contains(renderer.domElement)) {
         el.removeChild(renderer.domElement);
       }
@@ -525,30 +525,54 @@ export default function CharacterView({ onMessage }) {
   }, []);
 
   const handleGreetAndListen = async () => {
-    const greeting = "Hello! I'm Adv. Arjun, your AI legal consultant from Fox Mandal, one of India's premier law firms. I'm here to help you understand our legal services, discuss your legal needs, or answer questions about Indian law. How can I assist you today?";
+    const greeting = "Hello! I'm Adv. Arjun, your AI legal consultant from Fox Mandal, one of India's premier law firms. I'm here to help you understand our legal services, discuss your legal needs, or provide guidance on Indian law. How can I assist you with your legal matters today?";
     setAiText(greeting);
     onMessage?.(greeting);
     await speakAndListen(greeting);
   };
 
-  const handleFormSubmit = () => {
+  const handleFormSubmit = async () => {
     if (!formData.name?.trim() || !formData.email?.trim() || !formData.phone?.trim()) {
       alert("Please fill in your name, email, and phone number");
       return;
     }
     
-    console.log("Legal consultation request:", formData);
-    setShowContactForm(false);
-    setAiText("Thank you for your interest! Our legal team will contact you within 24 hours to schedule your consultation.");
-    setFormData({ 
-      name: "", 
-      email: "", 
-      phone: "",
-      legalArea: "corporate",
-      urgency: "medium",
-      message: "" 
-    });
-    setCurrentMode('default');
+    try {
+      // Submit to backend
+      const response = await fetch('https://character-chan.onrender.com/capture-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          legalArea: formData.legalArea,
+          urgency: formData.urgency,
+          message: formData.message,
+          sessionId: `session_${Date.now()}`,
+          source: 'character_view_form'
+        })
+      });
+
+      if (response.ok) {
+        setShowContactForm(false);
+        setAiText("Thank you for your interest! Our legal team will contact you within 24 hours to schedule your consultation and discuss your legal needs in detail.");
+        setFormData({ 
+          name: "", 
+          email: "", 
+          phone: "",
+          legalArea: "corporate_law",
+          urgency: "medium",
+          message: "" 
+        });
+        setCurrentMode('default');
+      } else {
+        throw new Error('Submission failed');
+      }
+    } catch (error) {
+      console.error('Form submission error:', error);
+      alert('There was an issue submitting your request. Please try again or contact us directly.');
+    }
   };
 
   return (
@@ -557,7 +581,7 @@ export default function CharacterView({ onMessage }) {
       <Container ref={container} className={currentMode}>
         <Tooltip>
           {loading 
-            ? "Loading legal consultation interface..." 
+            ? "Loading Fox Mandal legal consultation interface..." 
             : "Click hotspots to explore services or start a conversation with Adv. Arjun"
           }
         </Tooltip>
@@ -566,13 +590,13 @@ export default function CharacterView({ onMessage }) {
           listening={listening}
           onClick={() => listening ? stop() : handleGreetAndListen()}
         >
-          {listening ? '⚖️ Stop Listening' : '🏛️ Talk to Adv. Arjun'}
+          {listening ? 'Stop Listening' : 'Talk to Adv. Arjun'}
         </InteractionButton>
 
         {aiText && (
           <ChatBubble>
             <p>{aiText}</p>
-            <button className="close-btn" onClick={() => setAiText('')}>✕</button>
+            <button className="close-btn" onClick={() => setAiText('')}>×</button>
           </ChatBubble>
         )}
 
@@ -606,13 +630,14 @@ export default function CharacterView({ onMessage }) {
               value={formData.legalArea} 
               onChange={e => setFormData({...formData, legalArea: e.target.value})}
             >
-              <option value="corporate">Corporate Law</option>
-              <option value="litigation">Litigation</option>
-              <option value="ip">Intellectual Property</option>
-              <option value="employment">Employment Law</option>
+              <option value="corporate_law">Corporate Law</option>
+              <option value="litigation">Litigation & Disputes</option>
+              <option value="intellectual_property">Intellectual Property</option>
+              <option value="employment_law">Employment Law</option>
               <option value="real_estate">Real Estate</option>
-              <option value="tax">Tax Law</option>
-              <option value="other">Other</option>
+              <option value="tax_law">Tax Law</option>
+              <option value="contracts">Contract Law</option>
+              <option value="consultation_request">General Legal Advice</option>
             </select>
             <select 
               value={formData.urgency} 
@@ -620,10 +645,10 @@ export default function CharacterView({ onMessage }) {
             >
               <option value="low">General inquiry</option>
               <option value="medium">Within a week</option>
-              <option value="high">Urgent (ASAP)</option>
+              <option value="high">Urgent matter (ASAP)</option>
             </select>
             <textarea 
-              placeholder="Briefly describe your legal matter..." 
+              placeholder="Briefly describe your legal matter or questions..." 
               value={formData.message} 
               onChange={e => setFormData({...formData, message: e.target.value})}
             />

@@ -1,25 +1,17 @@
-// src/api/chatApi.js
-const API_BASE_URL = "https://character-chan.onrender.com";
-//import.meta.env.VITE_API_URL || "http://localhost:3001";
- // src/api/chatApi.js - Unified API for switching between clients
-// Client configuration - easily switch between different AI personalities
+// src/api/chatApi.js - Updated for Fox Mandal Live Deployment
+const API_BASE_URL = 'https://character-chan.onrender.com';
+
+// Client configuration for Fox Mandal Legal AI
 const CLIENT_CONFIG = {
   foxmandal: {
     endpoint: '/chat',
     assistantName: 'Adv. Arjun',
     industry: 'legal',
     leadEndpoint: '/capture-lead'
-  },
-  origami: {
-    endpoint: '/chat',
-    assistantName: 'Rakesh', 
-    industry: 'branding',
-    leadEndpoint: '/capture-lead'
   }
 };
 
-// Get current client from environment or default to foxmandal
-const currentClient = import.meta.env.VITE_CLIENT || 'foxmandal';
+const currentClient = 'foxmandal';
 const config = CLIENT_CONFIG[currentClient];
 
 export const sendMessage = async (message, sessionId = null) => {
@@ -35,8 +27,7 @@ export const sendMessage = async (message, sessionId = null) => {
       },
       body: JSON.stringify({ 
         message: message.trim(),
-        sessionId: sessionId || generateSessionId(),
-        client: currentClient
+        sessionId: sessionId || generateSessionId()
       })
     });
 
@@ -55,20 +46,10 @@ export const sendMessage = async (message, sessionId = null) => {
 
     const data = await response.json();
     
-    // Handle different response formats
-    if (data.reply) {
-      return {
-        reply: data.reply,
-        userProfile: data.userProfile || {}
-      };
-    } else if (data.message) {
-      return {
-        reply: data.message,
-        userProfile: data.userProfile || {}
-      };
-    } else {
-      throw new Error('Invalid response format from server');
-    }
+    return {
+      reply: data.reply || data.message || 'I apologize, but I encountered an issue processing your request.',
+      userProfile: data.userProfile || {}
+    };
     
   } catch (error) {
     if (error.name === 'TypeError' && error.message.includes('fetch')) {
@@ -88,7 +69,6 @@ export const captureLead = async (leadData, sessionId) => {
       body: JSON.stringify({
         ...leadData,
         sessionId,
-        client: currentClient,
         timestamp: new Date().toISOString()
       })
     });
@@ -105,32 +85,22 @@ export const captureLead = async (leadData, sessionId) => {
   }
 };
 
-// Text-to-Speech using browser API (server TTS disabled)
+// Text-to-Speech using browser API
 export const getTTS = async (text) => {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     if (!text || !window.speechSynthesis) {
       resolve();
       return;
     }
 
     try {
-      // Cancel any ongoing speech
       window.speechSynthesis.cancel();
       
       const utterance = new SpeechSynthesisUtterance(text);
-      
-      // Configure voice settings based on client
-      if (currentClient === 'foxmandal') {
-        utterance.rate = 0.9;
-        utterance.pitch = 0.8;
-        utterance.volume = 0.8;
-      } else {
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
-        utterance.volume = 0.9;
-      }
+      utterance.rate = 0.9;
+      utterance.pitch = 0.8;
+      utterance.volume = 0.8;
 
-      // Try to use a professional-sounding voice
       const voices = window.speechSynthesis.getVoices();
       const preferredVoice = voices.find(voice => 
         voice.lang.startsWith('en') && 
@@ -142,24 +112,20 @@ export const getTTS = async (text) => {
       }
 
       utterance.onend = () => resolve();
-      utterance.onerror = (event) => {
-        console.warn('TTS Error:', event.error);
-        resolve(); // Don't reject, just continue silently
-      };
+      utterance.onerror = () => resolve();
 
       window.speechSynthesis.speak(utterance);
       
-      // Fallback timeout
       setTimeout(() => {
         if (window.speechSynthesis.speaking) {
           window.speechSynthesis.cancel();
         }
         resolve();
-      }, 15000); // 15 second timeout
+      }, 15000);
       
     } catch (error) {
-      console.warn('TTS setup error:', error);
-      resolve(); // Continue silently on TTS errors
+      console.warn('TTS error:', error);
+      resolve();
     }
   });
 };
@@ -183,43 +149,12 @@ export const checkHealth = async () => {
 
 // Generate session ID
 function generateSessionId() {
-  return `session_${currentClient}_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+  return `session_foxmandal_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
 }
 
-// Export current configuration for components to use
+// Export current configuration
 export const getCurrentConfig = () => ({
   ...config,
   client: currentClient,
   apiUrl: API_BASE_URL
 });
-
-// Conversation memory functions (if needed by server)
-export const getConversationHistory = async (sessionId) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/conversation/${sessionId}`);
-    if (response.ok) {
-      return await response.json();
-    }
-    return { messages: [] };
-  } catch (error) {
-    console.warn('Failed to get conversation history:', error);
-    return { messages: [] };
-  }
-};
-
-export const saveConversationTurn = async (sessionId, userMessage, aiResponse) => {
-  try {
-    await fetch(`${API_BASE_URL}/conversation/${sessionId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userMessage,
-        aiResponse,
-        timestamp: new Date().toISOString(),
-        client: currentClient
-      })
-    });
-  } catch (error) {
-    console.warn('Failed to save conversation:', error);
-  }
-};
