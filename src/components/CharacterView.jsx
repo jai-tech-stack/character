@@ -423,7 +423,7 @@ export default function CharacterView({ onMessage }) {
     // Try to load Fox Mandal texture
     const textureLoader = new THREE.TextureLoader();
     textureLoader.load(
-      "/logo.webp", // You can add this image
+      "/logo.png", // You can add this image
       (texture) => { 
         plane.material = new THREE.MeshLambertMaterial({ map: texture });
         setLoading(false);
