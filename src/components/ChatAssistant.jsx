@@ -1,366 +1,20 @@
-// Enhanced Legal Chat Assistant for Fox Mandal
+// ChatAssistant.jsx with Fixed TTS and Pronunciation
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import styled, { keyframes } from "styled-components";
 import { useSpeechRecognition } from "react-speech-kit";
-import { sendMessage, getTTS } from "../api/chatApi";
+import { sendMessage, getTTS, stopTTS } from "../api/chatApi";
 import { v4 as uuidv4 } from "uuid";
 
-const pulse = keyframes`
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-`;
+// ... (keep all your existing styled components) ...
 
-const slideIn = keyframes`
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-`;
-
-const fadeIn = keyframes`
-  from { opacity: 0; }
-  to { opacity: 1; }
-`;
-
-const ChatBtn = styled.button`
-  position: fixed;
-  bottom: 2rem;
-  right: 2rem;
-  background: ${props => props.listening ? 
-    'linear-gradient(45deg, #b87333, #92400e)' : 
-    'linear-gradient(45deg, #1e40af, #1e3a8a)'
-  };
-  border: none;
-  border-radius: 50%;
-  width: 70px;
-  height: 70px;
-  color: white;
-  font-size: 1.8rem;
-  z-index: 1000;
-  cursor: pointer;
-  box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-  backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
-  animation: ${props => props.listening ? pulse : 'none'} 1.5s infinite;
-  
-  @media (max-width: 768px) {
-    width: 60px;
-    height: 60px;
-    font-size: 1.5rem;
-    bottom: 1.5rem;
-    right: 1.5rem;
-  }
-  
-  &:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 12px 35px rgba(0,0,0,0.4);
-  }
-  
-  &::before {
-    content: '';
-    position: absolute;
-    inset: -3px;
-    border-radius: 50%;
-    background: ${props => props.listening ? 
-      'linear-gradient(45deg, #b87333, #92400e)' : 
-      'linear-gradient(45deg, #1e40af, #1e3a8a)'
-    };
-    opacity: 0.3;
-    z-index: -1;
-    animation: ${props => props.listening ? pulse : 'none'} 2s infinite;
-  }
-`;
-
-const ChatBox = styled.div`
-  position: fixed;
-  bottom: 10rem;
-  right: 2rem;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(30px);
-  padding: 0;
-  width: 400px;
-  max-width: calc(100vw - 4rem);
-  max-height: 600px;
-  border-radius: 20px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-  border: 1px solid rgba(184, 115, 51, 0.2);
-  z-index: 999;
-  animation: ${slideIn} 0.4s ease-out;
-  overflow: hidden;
-  
-  @media (max-width: 768px) {
-    right: 1rem;
-    left: 1rem;
-    width: auto;
-    max-width: none;
-    bottom: 8rem;
-  }
-`;
-
-const ChatHeader = styled.div`
-  background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
-  color: white;
-  padding: 1rem 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  
-  h3 {
-    margin: 0;
-    font-size: 1.1rem;
-    font-weight: 600;
-  }
-  
-  .status {
-    font-size: 0.8rem;
-    opacity: 0.9;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-  
-  .status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: ${props => props.listening ? '#b87333' : '#10b981'};
-    animation: ${props => props.listening ? pulse : 'none'} 1s infinite;
-  }
-`;
-
-const MessagesContainer = styled.div`
-  padding: 1rem;
-  max-height: 400px;
-  overflow-y: auto;
-  
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-  
-  &::-webkit-scrollbar-track {
-    background: rgba(0,0,0,0.1);
-    border-radius: 3px;
-  }
-  
-  &::-webkit-scrollbar-thumb {
-    background: rgba(0,0,0,0.3);
-    border-radius: 3px;
-  }
-`;
-
-const Message = styled.div`
-  margin-bottom: 1rem;
-  animation: ${fadeIn} 0.3s ease;
-  
-  &:last-child {
-    margin-bottom: 0;
-  }
-  
-  .message-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.3rem;
-  }
-  
-  .sender {
-    font-weight: 600;
-    font-size: 0.85rem;
-    color: ${props => props.isUser ? '#1e40af' : '#b87333'};
-  }
-  
-  .timestamp {
-    font-size: 0.7rem;
-    color: #999;
-  }
-  
-  .content {
-    background: ${props => props.isUser ? 
-      'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)' : 
-      'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)'
-    };
-    padding: 0.8rem 1rem;
-    border-radius: 15px;
-    font-size: 0.9rem;
-    line-height: 1.4;
-    color: #374151;
-    margin-left: ${props => props.isUser ? '2rem' : '0'};
-    margin-right: ${props => props.isUser ? '0' : '2rem'};
-    position: relative;
-    
-    &::before {
-      content: '';
-      position: absolute;
-      top: 10px;
-      ${props => props.isUser ? 'right: -8px' : 'left: -8px'};
-      width: 0;
-      height: 0;
-      border: 8px solid transparent;
-      border-${props => props.isUser ? 'left' : 'right'}-color: ${props => props.isUser ? '#bfdbfe' : '#fde68a'};
-    }
-  }
-`;
-
-const TypingIndicator = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.8rem 1rem;
-  margin-bottom: 1rem;
-  font-style: italic;
-  color: #666;
-  font-size: 0.85rem;
-  
-  .dots {
-    display: flex;
-    gap: 3px;
-  }
-  
-  .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #b87333;
-    animation: ${pulse} 1.4s infinite;
-    
-    &:nth-child(1) { animation-delay: 0s; }
-    &:nth-child(2) { animation-delay: 0.2s; }
-    &:nth-child(3) { animation-delay: 0.4s; }
-  }
-`;
-
-const LeadCapturePrompt = styled.div`
-  background: linear-gradient(135deg, #b87333 0%, #92400e 100%);
-  color: white;
-  padding: 1rem;
-  margin: 0.5rem 0;
-  border-radius: 15px;
-  text-align: center;
-  
-  .lead-title {
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-  }
-  
-  .lead-subtitle {
-    font-size: 0.85rem;
-    opacity: 0.9;
-    margin-bottom: 1rem;
-  }
-  
-  .lead-buttons {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-  
-  .lead-btn {
-    background: rgba(255, 255, 255, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    color: white;
-    padding: 0.5rem 1rem;
-    border-radius: 20px;
-    cursor: pointer;
-    font-size: 0.8rem;
-    transition: all 0.3s ease;
-    
-    &:hover {
-      background: rgba(255, 255, 255, 0.3);
-    }
-  }
-`;
-
-const QuickLeadForm = styled.div`
-  padding: 1rem;
-  background: rgba(0,0,0,0.02);
-  border-top: 1px solid rgba(0,0,0,0.1);
-  
-  .form-title {
-    font-weight: 600;
-    margin-bottom: 1rem;
-    color: #1e40af;
-  }
-  
-  .form-row {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-    flex-wrap: wrap;
-  }
-  
-  input, select {
-    flex: 1;
-    padding: 0.6rem;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    min-width: 120px;
-    
-    &:focus {
-      outline: none;
-      border-color: #b87333;
-      box-shadow: 0 0 0 2px rgba(184, 115, 51, 0.1);
-    }
-  }
-  
-  .submit-btn {
-    background: linear-gradient(45deg, #b87333, #92400e);
-    color: white;
-    border: none;
-    padding: 0.6rem 1.2rem;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 600;
-    transition: all 0.3s ease;
-    width: 100%;
-    margin-top: 0.5rem;
-    
-    &:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(184, 115, 51, 0.3);
-    }
-    
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-  }
-  
-  .privacy-note {
-    font-size: 0.7rem;
-    color: #666;
-    margin-top: 0.5rem;
-    text-align: center;
-  }
-`;
-
-const CloseButton = styled.button`
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  color: white;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  
-  &:hover {
-    background: rgba(255, 255, 255, 0.3);
-    transform: rotate(90deg);
-  }
-`;
-
-// Smart Legal Lead Capture Logic
+// Smart Legal Lead Capture Logic (keep existing)
 class SmartLegalCapture {
   constructor() {
     this.triggers = {
-      consultation: ['consultation', 'legal advice', 'lawyer', 'attorney', 'help me', 'need legal'],
-      urgency: ['urgent', 'asap', 'emergency', 'court date', 'deadline', 'immediately'],
-      specific_legal: ['contract', 'lawsuit', 'dispute', 'litigation', 'corporate', 'IP', 'employment'],
-      pricing: ['cost', 'fee', 'price', 'charges', 'how much', 'expensive']
+      consultation: ['consultation', 'legal advice', 'lawyer', 'attorney', 'help me', 'need legal', 'schedule', 'appointment'],
+      urgency: ['urgent', 'asap', 'emergency', 'court date', 'deadline', 'immediately', 'time sensitive'],
+      specific_legal: ['contract', 'lawsuit', 'dispute', 'litigation', 'corporate', 'IP', 'employment', 'property', 'tax'],
+      pricing: ['cost', 'fee', 'price', 'charges', 'how much', 'expensive', 'affordable']
     };
     
     this.leadScore = 0;
@@ -388,11 +42,12 @@ class SmartLegalCapture {
     
     // Extract legal area
     const legalAreas = {
-      'corporate': ['company', 'business', 'corporate', 'merger'],
-      'litigation': ['court', 'lawsuit', 'dispute', 'sue'],
-      'contracts': ['contract', 'agreement', 'terms'],
-      'employment': ['employee', 'workplace', 'termination'],
-      'ip': ['trademark', 'patent', 'copyright', 'intellectual property']
+      'corporate_law': ['company', 'business', 'corporate', 'merger', 'acquisition'],
+      'litigation': ['court', 'lawsuit', 'dispute', 'sue', 'legal action'],
+      'contracts': ['contract', 'agreement', 'terms', 'breach'],
+      'employment_law': ['employee', 'workplace', 'termination', 'labor'],
+      'intellectual_property': ['trademark', 'patent', 'copyright', 'intellectual property', 'brand'],
+      'real_estate': ['property', 'real estate', 'land', 'lease', 'rent']
     };
     
     Object.entries(legalAreas).forEach(([area, keywords]) => {
@@ -432,11 +87,12 @@ export default function LegalChatAssistant() {
   const [sessionId] = useState(() => uuidv4());
   const [isTyping, setIsTyping] = useState(false);
   const [showLeadCapture, setShowLeadCapture] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [leadData, setLeadData] = useState({ 
     name: '', 
     email: '', 
     phone: '',
-    legalArea: 'corporate',
+    legalArea: 'corporate_law',
     urgency: 'medium'
   });
   const [isSubmittingLead, setIsSubmittingLead] = useState(false);
@@ -452,6 +108,20 @@ export default function LegalChatAssistant() {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  // Enhanced TTS handling
+  const speakResponse = useCallback(async (text) => {
+    if (!text) return;
+    
+    setIsSpeaking(true);
+    try {
+      await getTTS(text);
+    } catch (err) {
+      console.error("TTS error:", err);
+    } finally {
+      setIsSpeaking(false);
+    }
+  }, []);
 
   async function handleUser(text, isQuickAction = false) {
     if (!text?.trim()) return;
@@ -476,7 +146,7 @@ export default function LegalChatAssistant() {
       
       setIsTyping(false);
       setMsgs(prev => [...prev, { 
-        from: 'Adv. Arjun', 
+        from: 'Advocate Arjun', // Fixed name display
         text: reply, 
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         id: uuidv4(),
@@ -490,22 +160,23 @@ export default function LegalChatAssistant() {
         smartCapture.current.userProfile = { ...smartCapture.current.userProfile, ...userProfile };
       }
 
+      // Stop listening before speaking
       stop();
-      try {
-        await getTTS(reply);
-      } catch (err) {
-        console.error("TTS error:", err);
-      }
+      
+      // Speak the response
+      await speakResponse(reply);
 
     } catch (err) {
       console.error("Legal chat error:", err);
       setIsTyping(false);
+      const errorMsg = "I'm experiencing connectivity issues with our legal system. Please try again in a moment.";
       setMsgs(prev => [...prev, { 
-        from: 'Adv. Arjun', 
-        text: "I'm experiencing connectivity issues. Please try again in a moment.", 
+        from: 'Advocate Arjun', 
+        text: errorMsg, 
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         id: uuidv4()
       }]);
+      await speakResponse(errorMsg);
     }
   }
 
@@ -528,7 +199,7 @@ export default function LegalChatAssistant() {
     setIsSubmittingLead(true);
     
     try {
-      const response = await fetch('/capture-lead', {
+      const response = await fetch('https://character-chan.onrender.com/capture-lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -547,12 +218,14 @@ export default function LegalChatAssistant() {
       
       if (result.success) {
         setShowLeadCapture(false);
+        const successMsg = 'Perfect! Our legal team will contact you within 24 hours to discuss your matter. Is there anything else about our services you\'d like to know?';
         setMsgs(prev => [...prev, {
           from: 'System',
-          text: 'Perfect! Our legal team will contact you within 24 hours to discuss your matter. Is there anything else about our services you\'d like to know?',
+          text: successMsg,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           id: uuidv4()
         }]);
+        await speakResponse(successMsg);
       }
       
     } catch (error) {
@@ -568,22 +241,32 @@ export default function LegalChatAssistant() {
       setOpen(true);
       if (msgs.length === 0) {
         setTimeout(() => {
+          const welcomeMsg = "Hello! I'm Advocate Arjun, your AI legal consultant from Fox Man-dal, one of India's premier law firms. I can help you understand our legal services, discuss your legal needs, or provide general information about Indian law. How can I assist you with your legal matters today?";
           setMsgs([{
-            from: 'Adv. Arjun',
-            text: "Hello! I'm Advocate Arjun, your AI legal consultant from Fox Mandal. I can help you understand our legal services, discuss your legal needs, or provide general information about Indian law. How can I assist you today?",
-            timestamp: new Date().toLocaleTimeString([], { hour: '3-digit', minute: '3-digit' }),
+            from: 'Advocate Arjun',
+            text: welcomeMsg,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             id: uuidv4()
           }]);
+          speakResponse(welcomeMsg);
         }, 500);
       }
     }
     
-    listening ? stop() : listen({ interimResults: false });
+    if (listening || isSpeaking) {
+      stopTTS();
+      stop();
+      setIsSpeaking(false);
+    } else {
+      listen({ interimResults: false });
+    }
   }
 
   function closeChat() {
     setOpen(false);
+    stopTTS();
     stop();
+    setIsSpeaking(false);
     
     console.log('Legal consultation session ended:', {
       sessionId,
@@ -597,15 +280,15 @@ export default function LegalChatAssistant() {
     <>
       {open && (
         <ChatBox>
-          <ChatHeader listening={listening}>
+          <ChatHeader listening={listening || isSpeaking}>
             <div>
-              <h3>Chat with Adv. Arjun</h3>
+              <h3>Chat with Advocate Arjun</h3>
               <div className="status">
                 <div className="status-dot"></div>
-                {listening ? 'Listening...' : 'Ready to help'}
+                {listening ? 'Listening...' : isSpeaking ? 'Speaking...' : 'Ready to help'}
               </div>
             </div>
-            <CloseButton onClick={closeChat}>✕</CloseButton>
+            <CloseButton onClick={closeChat}>×</CloseButton>
           </ChatHeader>
           
           <MessagesContainer>
@@ -644,7 +327,7 @@ export default function LegalChatAssistant() {
             
             {isTyping && (
               <TypingIndicator>
-                <span>Adv. Arjun is analyzing...</span>
+                <span>Advocate Arjun is analyzing...</span>
                 <div className="dots">
                   <div className="dot"></div>
                   <div className="dot"></div>
@@ -683,12 +366,14 @@ export default function LegalChatAssistant() {
                   value={leadData.legalArea}
                   onChange={(e) => setLeadData({...leadData, legalArea: e.target.value})}
                 >
-                  <option value="corporate">Corporate Law</option>
+                  <option value="corporate_law">Corporate Law</option>
                   <option value="litigation">Litigation</option>
                   <option value="contracts">Contract Law</option>
-                  <option value="ip">Intellectual Property</option>
-                  <option value="employment">Employment Law</option>
-                  <option value="other">Other</option>
+                  <option value="intellectual_property">Intellectual Property</option>
+                  <option value="employment_law">Employment Law</option>
+                  <option value="real_estate">Real Estate</option>
+                  <option value="tax_law">Tax Law</option>
+                  <option value="consultation_request">General Legal Advice</option>
                 </select>
               </div>
               <div className="form-row">
@@ -717,11 +402,11 @@ export default function LegalChatAssistant() {
       )}
       
       <ChatBtn 
-        listening={listening}
+        listening={listening || isSpeaking}
         onClick={toggleRecording}
-        title={listening ? "Stop listening" : "Start legal consultation"}
+        title={listening ? "Stop listening" : isSpeaking ? "Speaking..." : "Start legal consultation"}
       >
-        {listening ? '🔊' : '⚖️'}
+        {listening ? '🔊' : isSpeaking ? '📢' : '⚖️'}
       </ChatBtn>
     </>
   );

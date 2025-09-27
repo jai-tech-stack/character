@@ -1,9 +1,9 @@
-// src/components/CharacterView.jsx - Fox Mandal Legal Live Version
+// CharacterView.jsx with Fixed TTS and Pronunciation
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import styled, { keyframes, createGlobalStyle } from "styled-components";
 import { useSpeechRecognition } from "react-speech-kit";
-import { sendMessage, getTTS } from "../api/chatApi";
+import { sendMessage, getTTS, stopTTS } from "../api/chatApi";
 
 const fadeIn = keyframes`from { opacity:0 } to { opacity:1 }`;
 const pulse = keyframes`
@@ -289,6 +289,7 @@ export default function CharacterView({ onMessage }) {
   const [showContactForm, setShowContactForm] = useState(false);
   const [currentMode, setCurrentMode] = useState('default');
   const [hotspotInfo, setHotspotInfo] = useState("");
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [formData, setFormData] = useState({ 
     name: "", 
     email: "", 
@@ -300,9 +301,9 @@ export default function CharacterView({ onMessage }) {
   const { listen, listening, stop } = useSpeechRecognition({ onResult: handleVoiceCommand });
 
   const hotspotPrompts = {
-    services: "What comprehensive legal services does Fox Mandal offer to clients in India?",
-    expertise: "Tell me about Fox Mandal's areas of legal expertise and specialization in Indian law",
-    consultation: "I want to schedule a legal consultation with Fox Mandal's team"
+    services: "What comprehensive legal services does Fox Man-dal offer to clients in India?",
+    expertise: "Tell me about Fox Man-dal's areas of legal expertise and specialization in Indian law",
+    consultation: "I want to schedule a legal consultation with Fox Man-dal's legal team"
   };
 
   const modeContexts = {
@@ -311,8 +312,14 @@ export default function CharacterView({ onMessage }) {
     consultation: 'consultation-mode'
   };
 
+  // Enhanced voice command handler with better TTS control
   async function handleVoiceCommand(text) {
     if (!text?.trim()) return;
+    
+    // Stop any ongoing speech
+    stopTTS();
+    stop();
+    
     setAiText("Analyzing your legal query...");
     setHotspotInfo("");
 
@@ -325,7 +332,7 @@ export default function CharacterView({ onMessage }) {
       const lowerReply = reply.toLowerCase();
       if (lowerReply.includes('consultation') || lowerReply.includes('legal advice') || lowerReply.includes('schedule')) {
         setCurrentMode('consultation-mode');
-        setTimeout(() => setShowContactForm(true), 2000);
+        setTimeout(() => setShowContactForm(true), 3000); // Wait for speech to complete
       } else if (lowerReply.includes('corporate') || lowerReply.includes('business')) {
         setCurrentMode('corporate-mode');
       } else if (lowerReply.includes('litigation') || lowerReply.includes('court') || lowerReply.includes('dispute')) {
@@ -335,25 +342,43 @@ export default function CharacterView({ onMessage }) {
       await speakAndListen(reply);
     } catch (err) {
       console.error("Legal consultation error:", err);
-      setAiText("I'm experiencing connectivity issues with our legal system. Please try again in a moment or use the contact form below.");
+      const errorMessage = "I'm experiencing connectivity issues with our legal system. Please try again in a moment or use the contact form below for assistance.";
+      setAiText(errorMessage);
+      await speakResponse(errorMessage);
       setTimeout(() => setShowContactForm(true), 2000);
     }
   }
 
-  const speakAndListen = useCallback(async (text) => {
-    stop();
-    window.speechSynthesis.cancel();
-
+  // Separate function for speaking responses
+  const speakResponse = useCallback(async (text) => {
+    if (!text) return;
+    
+    setIsSpeaking(true);
     try {
       await getTTS(text);
     } catch (err) {
       console.error("TTS error:", err);
+    } finally {
+      setIsSpeaking(false);
     }
+  }, []);
 
-    setTimeout(() => listen({ interimResults: false }), 1000);
-  }, [stop, listen]);
+  // Enhanced speak and listen function
+  const speakAndListen = useCallback(async (text) => {
+    stop(); // Stop listening first
+    
+    // Speak the response
+    await speakResponse(text);
+    
+    // Resume listening after speech completes, with a small delay
+    setTimeout(() => {
+      if (!showContactForm) { // Don't resume listening if form is shown
+        listen({ interimResults: false });
+      }
+    }, 500);
+  }, [stop, listen, showContactForm, speakResponse]);
 
-  // Enhanced THREE.js scene
+  // Enhanced THREE.js scene (simplified for better performance)
   useEffect(() => {
     const el = container.current;
     const scene = new THREE.Scene();
@@ -367,8 +392,6 @@ export default function CharacterView({ onMessage }) {
     const camera = new THREE.PerspectiveCamera(65, el.clientWidth / el.clientHeight, 0.1, 500);
     camera.position.set(0, 0, 2.5);
     
-    // Orbit controls would need to be imported from a CDN
-    // For now, we'll use basic mouse interaction
     let mouseX = 0, mouseY = 0;
     
     const onMouseMove = (event) => {
@@ -397,10 +420,10 @@ export default function CharacterView({ onMessage }) {
     plane.receiveShadow = true;
     scene.add(plane);
 
-    // Try to load Fox Mandal texture (fallback if not available)
+    // Try to load Fox Mandal texture
     const textureLoader = new THREE.TextureLoader();
     textureLoader.load(
-      "/foxmandal-screenshot.jpg",
+      "/foxmandal-logo.jpg", // You can add this image
       (texture) => { 
         plane.material = new THREE.MeshLambertMaterial({ map: texture });
         setLoading(false);
@@ -525,10 +548,20 @@ export default function CharacterView({ onMessage }) {
   }, []);
 
   const handleGreetAndListen = async () => {
-    const greeting = "Hello! I'm Adv. Arjun, your AI legal consultant from Fox Mandal, one of India's premier law firms. I'm here to help you understand our legal services, discuss your legal needs, or provide guidance on Indian law. How can I assist you with your legal matters today?";
+    // Fixed greeting with proper pronunciation
+    const greeting = "Hello! I'm Advocate Arjun, your AI legal consultant from Fox Man-dal, one of India's premier law firms. I'm here to help you understand our legal services, discuss your legal needs, or provide guidance on Indian law. How can I assist you with your legal matters today?";
+    
     setAiText(greeting);
     onMessage?.(greeting);
+    
+    // Speak greeting and then start listening
     await speakAndListen(greeting);
+  };
+
+  const handleStopInteraction = () => {
+    stopTTS();
+    stop();
+    setIsSpeaking(false);
   };
 
   const handleFormSubmit = async () => {
@@ -538,7 +571,6 @@ export default function CharacterView({ onMessage }) {
     }
     
     try {
-      // Submit to backend
       const response = await fetch('https://character-chan.onrender.com/capture-lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -556,7 +588,10 @@ export default function CharacterView({ onMessage }) {
 
       if (response.ok) {
         setShowContactForm(false);
-        setAiText("Thank you for your interest! Our legal team will contact you within 24 hours to schedule your consultation and discuss your legal needs in detail.");
+        const successMessage = "Thank you for your interest! Our legal team will contact you within 24 hours to schedule your consultation and discuss your legal needs in detail.";
+        setAiText(successMessage);
+        await speakResponse(successMessage);
+        
         setFormData({ 
           name: "", 
           email: "", 
@@ -574,6 +609,7 @@ export default function CharacterView({ onMessage }) {
       alert('There was an issue submitting your request. Please try again or contact us directly.');
     }
   };
+
 
   return (
     <>
