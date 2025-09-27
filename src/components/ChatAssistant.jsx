@@ -570,8 +570,8 @@ export default function LegalChatAssistant() {
         setTimeout(() => {
           setMsgs([{
             from: 'Adv. Arjun',
-            text: "Hello! I'm Adv. Arjun, your AI legal consultant from Fox Mandal. I can help you understand our legal services, discuss your legal needs, or provide general information about Indian law. How can I assist you today?",
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            text: "Hello! I'm Advocate Arjun, your AI legal consultant from Fox Mandal. I can help you understand our legal services, discuss your legal needs, or provide general information about Indian law. How can I assist you today?",
+            timestamp: new Date().toLocaleTimeString([], { hour: '3-digit', minute: '3-digit' }),
             id: uuidv4()
           }]);
         }, 500);
