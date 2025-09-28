@@ -1,11 +1,11 @@
-// src/api/chatApi.js - Updated for Fox Mandal Live Deployment
+// src/api/chatApi.js - Enhanced for Agentic AI, AGI, ASI Support
 const API_BASE_URL = 'https://character-chan.onrender.com';
 
-// Client configuration for Fox Mandal Legal AI
+// Enhanced client configuration with AI modes
 const CLIENT_CONFIG = {
   foxmandal: {
     endpoint: '/chat',
-    assistantName: 'Adv. Arjun',
+    assistantName: 'Advocate Arjun', // Fixed from 'Adv. Arjun'
     industry: 'legal',
     leadEndpoint: '/capture-lead'
   }
@@ -14,7 +14,8 @@ const CLIENT_CONFIG = {
 const currentClient = 'foxmandal';
 const config = CLIENT_CONFIG[currentClient];
 
-export const sendMessage = async (message, sessionId = null) => {
+// Enhanced sendMessage with AI mode support
+export const sendMessage = async (message, sessionId = null, aiMode = 'standard') => {
   if (!message || typeof message !== 'string') {
     throw new Error('Message is required and must be a string');
   }
@@ -27,7 +28,9 @@ export const sendMessage = async (message, sessionId = null) => {
       },
       body: JSON.stringify({ 
         message: message.trim(),
-        sessionId: sessionId || generateSessionId()
+        sessionId: sessionId || generateSessionId(aiMode),
+        aiMode: aiMode,
+        timestamp: Date.now()
       })
     });
 
@@ -48,7 +51,8 @@ export const sendMessage = async (message, sessionId = null) => {
     
     return {
       reply: data.reply || data.message || 'I apologize, but I encountered an issue processing your request.',
-      userProfile: data.userProfile || {}
+      userProfile: data.userProfile || {},
+      aiMode: aiMode
     };
     
   } catch (error) {
@@ -59,7 +63,8 @@ export const sendMessage = async (message, sessionId = null) => {
   }
 };
 
-export const captureLead = async (leadData, sessionId) => {
+// Enhanced lead capture with AI mode context
+export const captureLead = async (leadData, sessionId, aiMode = 'standard') => {
   try {
     const response = await fetch(`${API_BASE_URL}${config.leadEndpoint}`, {
       method: 'POST',
@@ -69,7 +74,9 @@ export const captureLead = async (leadData, sessionId) => {
       body: JSON.stringify({
         ...leadData,
         sessionId,
-        timestamp: new Date().toISOString()
+        aiMode,
+        timestamp: new Date().toISOString(),
+        source: `foxmandal_${aiMode}_ai`
       })
     });
 
@@ -85,9 +92,8 @@ export const captureLead = async (leadData, sessionId) => {
   }
 };
 
-// Text-to-Speech using browser API
-// Enhanced TTS system with pronunciation fixes for chatApi.js
-export const getTTS = async (text) => {
+// Enhanced TTS with AI mode-specific settings and pronunciation fixes
+export const getTTS = async (text, aiMode = 'standard') => {
   return new Promise((resolve) => {
     if (!text || !window.speechSynthesis) {
       resolve();
@@ -100,45 +106,80 @@ export const getTTS = async (text) => {
       
       // Wait a moment for cancellation to complete
       setTimeout(() => {
-        // Fix pronunciation issues
+        // Enhanced pronunciation fixes
         let processedText = text
-          .replace(/Adv\./g, 'Advocate')  // Replace "Adv." with "Advocate"
-          .replace(/FoxMandal/g, 'FoxMandal')  // Proper pronunciation
-          .replace(/SEBI/g, 'S-E-B-I')  // Spell out acronyms
+          .replace(/Adv\./g, 'Advocate')
+          .replace(/FoxMandal/g, 'FoxMandal')
+          .replace(/SEBI/g, 'S-E-B-I')
           .replace(/NCLT/g, 'N-C-L-T')
           .replace(/NCLAT/g, 'N-C-L-A-T')
           .replace(/FEMA/g, 'F-E-M-A')
           .replace(/GST/g, 'G-S-T')
           .replace(/RERA/g, 'R-E-R-A')
           .replace(/IP/g, 'Intellectual Property')
-          .replace(/\b(vs?\.?)\b/gi, 'versus')  // Replace "v." or "vs." with "versus"
+          .replace(/\b(vs?\.?)\b/gi, 'versus')
           .replace(/Ltd\./g, 'Limited')
-          .replace(/Pvt\./g, 'Private');
+          .replace(/Pvt\./g, 'Private')
+          // AI-specific pronunciation fixes
+          .replace(/AGI/g, 'A-G-I')
+          .replace(/ASI/g, 'A-S-I')
+          .replace(/AI/g, 'A-I');
 
         const utterance = new SpeechSynthesisUtterance(processedText);
         
-        // Optimize settings for legal content
-        utterance.rate = 0.85;  // Slightly slower for clarity
-        utterance.pitch = 0.9;  // Professional tone
-        utterance.volume = 0.9;
-        utterance.lang = 'en-IN';  // Indian English if available
+        // AI mode-specific voice settings
+        switch(aiMode) {
+          case 'asi':
+            utterance.rate = 0.7;   // Slower, more authoritative
+            utterance.pitch = 0.7;  // Deeper voice
+            utterance.volume = 0.95;
+            break;
+          case 'agi':
+            utterance.rate = 0.8;   // Measured pace
+            utterance.pitch = 0.8;  // Professional tone
+            utterance.volume = 0.9;
+            break;
+          case 'agentic':
+            utterance.rate = 0.85;  // Confident delivery
+            utterance.pitch = 0.9;  // Clear tone
+            utterance.volume = 0.9;
+            break;
+          default: // standard
+            utterance.rate = 0.85;
+            utterance.pitch = 0.9;
+            utterance.volume = 0.9;
+        }
         
-        // Wait for voices to load
+        utterance.lang = 'en-IN'; // Indian English preference
+        
         const setVoiceAndSpeak = () => {
           const voices = window.speechSynthesis.getVoices();
           
-          // Prefer Indian English voices, then British, then any English
-          const preferredVoice = voices.find(voice => 
-            voice.lang === 'en-IN' && voice.name.includes('Google')
-          ) || voices.find(voice => 
-            voice.lang === 'en-GB' && voice.name.includes('Google')
-          ) || voices.find(voice => 
-            voice.lang.startsWith('en') && 
-            (voice.name.includes('Google') || voice.name.includes('Microsoft'))
-          ) || voices.find(voice => voice.lang.startsWith('en'));
+          // Enhanced voice selection with AI mode preferences
+          let preferredVoice;
+          
+          if (aiMode === 'asi' || aiMode === 'agi') {
+            // Prefer deeper, more authoritative voices for advanced AI
+            preferredVoice = voices.find(voice => 
+              voice.lang === 'en-GB' && voice.name.includes('Google')
+            );
+          }
+          
+          if (!preferredVoice) {
+            // Fallback to standard selection
+            preferredVoice = voices.find(voice => 
+              voice.lang === 'en-IN' && voice.name.includes('Google')
+            ) || voices.find(voice => 
+              voice.lang === 'en-GB' && voice.name.includes('Google')
+            ) || voices.find(voice => 
+              voice.lang.startsWith('en') && 
+              (voice.name.includes('Google') || voice.name.includes('Microsoft'))
+            ) || voices.find(voice => voice.lang.startsWith('en'));
+          }
           
           if (preferredVoice) {
             utterance.voice = preferredVoice;
+            console.log(`TTS using voice: ${preferredVoice.name} for ${aiMode} mode`);
           }
 
           let speechStarted = false;
@@ -146,13 +187,13 @@ export const getTTS = async (text) => {
 
           utterance.onstart = () => {
             speechStarted = true;
-            console.log('TTS started:', processedText.substring(0, 50) + '...');
+            console.log(`TTS started (${aiMode} mode):`, processedText.substring(0, 50) + '...');
           };
 
           utterance.onend = () => {
             if (!speechEnded) {
               speechEnded = true;
-              console.log('TTS completed successfully');
+              console.log(`TTS completed (${aiMode} mode)`);
               resolve();
             }
           };
@@ -165,18 +206,22 @@ export const getTTS = async (text) => {
             }
           };
 
-          // Safety timeout - resolve if speech doesn't complete
-          const maxDuration = Math.max(10000, processedText.length * 100); // Minimum 10s, or 100ms per character
+          // Dynamic timeout based on AI mode (complex responses need more time)
+          const baseDuration = Math.max(10000, processedText.length * 100);
+          const modeDuration = aiMode === 'asi' ? baseDuration * 1.5 : 
+                              aiMode === 'agi' ? baseDuration * 1.3 :
+                              aiMode === 'agentic' ? baseDuration * 1.2 :
+                              baseDuration;
+          
           const timeoutId = setTimeout(() => {
             if (!speechEnded) {
-              console.warn('TTS timeout reached, cancelling speech');
+              console.warn(`TTS timeout reached for ${aiMode} mode, cancelling speech`);
               window.speechSynthesis.cancel();
               speechEnded = true;
               resolve();
             }
-          }, maxDuration);
+          }, modeDuration);
 
-          // Clear timeout when speech completes normally
           const originalOnEnd = utterance.onend;
           utterance.onend = () => {
             clearTimeout(timeoutId);
@@ -186,10 +231,10 @@ export const getTTS = async (text) => {
           // Start speaking
           window.speechSynthesis.speak(utterance);
           
-          // Double-check if speech actually started after a brief delay
+          // Check if speech started
           setTimeout(() => {
             if (!speechStarted && !window.speechSynthesis.speaking) {
-              console.warn('TTS failed to start, resolving anyway');
+              console.warn(`TTS failed to start for ${aiMode} mode`);
               speechEnded = true;
               resolve();
             }
@@ -206,58 +251,160 @@ export const getTTS = async (text) => {
           setVoiceAndSpeak();
         }
         
-      }, 100); // Short delay after cancellation
+      }, 100);
       
     } catch (error) {
       console.warn('TTS setup error:', error);
-      resolve(); // Continue silently on TTS errors
+      resolve();
     }
   });
 };
 
-// Enhanced speech control functions
+// Enhanced TTS control functions
 export const stopTTS = () => {
   if (window.speechSynthesis) {
     window.speechSynthesis.cancel();
+    console.log('TTS stopped');
   }
 };
 
 export const pauseTTS = () => {
   if (window.speechSynthesis && window.speechSynthesis.speaking) {
     window.speechSynthesis.pause();
+    console.log('TTS paused');
   }
 };
 
 export const resumeTTS = () => {
   if (window.speechSynthesis && window.speechSynthesis.paused) {
     window.speechSynthesis.resume();
+    console.log('TTS resumed');
   }
 };
-// Health check endpoint
+
+// Enhanced health check with AI capabilities
 export const checkHealth = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/health`);
     const data = await response.json();
+    
     return {
       status: response.ok ? 'healthy' : 'unhealthy',
-      details: data
+      details: data,
+      aiCapabilities: {
+        standard: true,
+        agentic: data.services?.openai && data.services?.pinecone,
+        agi: data.services?.openai,
+        asi: data.services?.openai,
+        tts: 'speechSynthesis' in window
+      }
     };
   } catch (error) {
     return {
       status: 'unreachable',
-      details: { error: error.message }
+      details: { error: error.message },
+      aiCapabilities: {
+        standard: false,
+        agentic: false,
+        agi: false,
+        asi: false,
+        tts: 'speechSynthesis' in window
+      }
     };
   }
 };
 
-// Generate session ID
-function generateSessionId() {
-  return `session_foxmandal_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+// Enhanced session ID generation with AI mode
+function generateSessionId(aiMode = 'standard') {
+  return `session_foxmandal_${aiMode}_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
 }
 
-// Export current configuration
-export const getCurrentConfig = () => ({
+// AI mode configurations
+export const AI_MODES = {
+  standard: {
+    name: 'Standard AI',
+    description: 'Traditional legal consultation with Fox Mandal expertise',
+    capabilities: ['legal_consultation', 'document_review', 'compliance_check'],
+    icon: '⚖️',
+    color: '#1e40af'
+  },
+  agentic: {
+    name: 'Agentic AI',
+    description: 'Autonomous legal agent with independent research capabilities',
+    capabilities: ['autonomous_research', 'multi_step_planning', 'independent_analysis'],
+    icon: '🔬',
+    color: '#b87333'
+  },
+  agi: {
+    name: 'AGI',
+    description: 'General intelligence across legal, business, and technical domains',
+    capabilities: ['cross_domain_analysis', 'holistic_reasoning', 'integrated_solutions'],
+    icon: '🤖',
+    color: '#1976d2'
+  },
+  asi: {
+    name: 'ASI',
+    description: 'Superintelligence with predictive modeling and quantum processing',
+    capabilities: ['predictive_modeling', 'quantum_analysis', 'scenario_mapping'],
+    icon: '🧠',
+    color: '#4a4af5'
+  }
+};
+
+// Get AI mode configuration
+export const getModeConfig = (mode) => {
+  return AI_MODES[mode] || AI_MODES.standard;
+};
+
+// Validate AI mode
+export const isValidMode = (mode) => {
+  return Object.keys(AI_MODES).includes(mode);
+};
+
+// Enhanced configuration with AI mode support
+export const getCurrentConfig = (aiMode = 'standard') => ({
   ...config,
   client: currentClient,
-  apiUrl: API_BASE_URL
+  apiUrl: API_BASE_URL,
+  aiMode,
+  modeConfig: getModeConfig(aiMode)
 });
+
+// Local AI processing for client-side capabilities
+export class LocalAIProcessor {
+  static classifyLegalArea(message) {
+    const lowerMessage = message.toLowerCase();
+    const areas = {
+      'corporate_law': ['company', 'business', 'corporate', 'merger', 'acquisition'],
+      'litigation': ['court', 'case', 'lawsuit', 'dispute', 'sue'],
+      'contracts': ['contract', 'agreement', 'terms', 'breach'],
+      'intellectual_property': ['trademark', 'patent', 'copyright', 'ip'],
+      'employment_law': ['employee', 'termination', 'workplace', 'labor'],
+      'real_estate': ['property', 'real estate', 'land', 'lease']
+    };
+    
+    for (const [area, keywords] of Object.entries(areas)) {
+      if (keywords.some(keyword => lowerMessage.includes(keyword))) {
+        return area;
+      }
+    }
+    return 'general_legal';
+  }
+  
+  static assessUrgency(message) {
+    const urgentKeywords = ['urgent', 'asap', 'emergency', 'deadline', 'court date'];
+    return urgentKeywords.some(keyword => 
+      message.toLowerCase().includes(keyword)
+    ) ? 'high' : 'medium';
+  }
+}
+
+// API endpoints for reference
+export const API_ENDPOINTS = {
+  chat: `${API_BASE_URL}/chat`,
+  health: `${API_BASE_URL}/health`,
+  captureLead: `${API_BASE_URL}/capture-lead`,
+  analytics: `${API_BASE_URL}/legal-analytics`
+};
+
+console.log('Enhanced chatApi.js loaded with Agentic AI, AGI, ASI support');
