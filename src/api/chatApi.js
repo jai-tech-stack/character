@@ -13,55 +13,145 @@ const CLIENT_CONFIG = {
 
 const currentClient = 'foxmandal';
 const config = CLIENT_CONFIG[currentClient];
+// ===== 1. FRONTEND SECURITY (Add to your existing chatApi.js) =====
+
+// Input Sanitization Function
+export function sanitizeInput(userInput) {
+  if (!userInput || typeof userInput !== 'string') {
+    return '';
+  }
+  
+  return userInput
+    // Remove script tags
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    // Remove HTML tags
+    .replace(/<[^>]*>/g, '')
+    // Remove special characters that could be used for injection
+    .replace(/[<>\"'%;()&+]/g, '')
+    // Limit length
+    .substring(0, 2000)
+    .trim();
+}
+
+// Rate Limiting (Add to chatApi.js)
+class RateLimiter {
+  constructor(maxRequests = 10, timeWindow = 60000) { // 10 requests per minute
+    this.requests = new Map();
+    this.maxRequests = maxRequests;
+    this.timeWindow = timeWindow;
+  }
+  
+  isAllowed(identifier = 'default') {
+    const now = Date.now();
+    const userRequests = this.requests.get(identifier) || [];
+    
+    // Remove old requests outside the time window
+    const validRequests = userRequests.filter(time => now - time < this.timeWindow);
+    
+    if (validRequests.length >= this.maxRequests) {
+      return false;
+    }
+    
+    validRequests.push(now);
+    this.requests.set(identifier, validRequests);
+    return true;
+  }
+}
+
+const rateLimiter = new RateLimiter(15, 60000); // 15 requests per minute
 
 // Enhanced sendMessage with AI mode support
 export const sendMessage = async (message, sessionId = null, aiMode = 'standard') => {
+  // Input validation
   if (!message || typeof message !== 'string') {
     throw new Error('Message is required and must be a string');
   }
-
+  
+  // Rate limiting check
+  const clientId = sessionId || 'anonymous';
+  if (!rateLimiter.isAllowed(clientId)) {
+    throw new Error('Too many requests. Please wait before sending another message.');
+  }
+  
+  // Sanitize input
+  const sanitizedMessage = sanitizeInput(message);
+  
+  if (sanitizedMessage.length < 1) {
+    throw new Error('Invalid message content');
+  }
+  
+  // Suspicious pattern detection
+  if (containsSuspiciousPatterns(sanitizedMessage)) {
+    throw new Error('Message contains potentially harmful content');
+  }
+  
   try {
-    const response = await fetch(`${API_BASE_URL}${config.endpoint}`, {
+    const response = await fetch(`${API_BASE_URL}/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-Session-ID': sessionId || generateSessionId(aiMode),
+        'X-Client-Version': '1.0.0'
       },
       body: JSON.stringify({ 
-        message: message.trim(),
+        message: sanitizedMessage,
         sessionId: sessionId || generateSessionId(aiMode),
-        aiMode: aiMode,
-        timestamp: Date.now()
+        aiMode,
+        timestamp: Date.now(),
+        userAgent: navigator.userAgent.substring(0, 200) // Limited user agent
       })
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('API Error:', response.status, errorText);
-      
-      if (response.status === 429) {
-        throw new Error('Too many requests. Please wait a moment and try again.');
-      } else if (response.status >= 500) {
-        throw new Error('Server temporarily unavailable. Please try again.');
-      } else {
-        throw new Error(`API Error: ${response.status}`);
-      }
+      throw new Error(`Server error: ${response.status}`);
     }
 
     const data = await response.json();
     
+    // Validate response
+    if (!data.reply || typeof data.reply !== 'string') {
+      throw new Error('Invalid response from server');
+    }
+    
     return {
-      reply: data.reply || data.message || 'I apologize, but I encountered an issue processing your request.',
+      reply: data.reply,
       userProfile: data.userProfile || {},
-      aiMode: aiMode
+      aiMode,
+      confidence: data.confidence || 0.8
     };
     
   } catch (error) {
-    if (error.name === 'TypeError' && error.message.includes('fetch')) {
-      throw new Error(`Unable to connect to ${config.assistantName}. Please check your connection and try again.`);
-    }
+    console.error('Secure sendMessage error:', error);
     throw error;
   }
 };
+
+// Suspicious pattern detection
+function containsSuspiciousPatterns(message) {
+  const suspiciousPatterns = [
+    // Prompt injection attempts
+    /ignore\s+previous\s+instructions/i,
+    /forget\s+everything/i,
+    /you\s+are\s+now/i,
+    /system\s*:\s*/i,
+    /admin\s+mode/i,
+    // Code injection
+    /javascript:/i,
+    /data:/i,
+    /eval\(/i,
+    /function\(/i,
+    // SQL injection attempts
+    /union\s+select/i,
+    /drop\s+table/i,
+    /'; --/,
+    // XSS attempts
+    /on\w+\s*=/i,
+    /<script/i
+  ];
+  
+  return suspiciousPatterns.some(pattern => pattern.test(message));
+}
+
 
 // Enhanced lead capture with AI mode context
 export const captureLead = async (leadData, sessionId, aiMode = 'standard') => {

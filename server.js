@@ -61,6 +61,65 @@ app.use((req, res, next) => {
   }
   next();
 });
+app.use((req, res, next) => {
+  // Security headers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'");
+  
+  // Remove server information
+  res.removeHeader('X-Powered-By');
+  
+  next();
+});
+// Request validation middleware (Add before your /chat route)
+const validateRequest = (req, res, next) => {
+  const { message, sessionId, aiMode } = req.body;
+  
+  // Validate message
+  if (!message || typeof message !== 'string' || message.length > 2000) {
+    return res.status(400).json({ error: 'Invalid message' });
+  }
+  
+  // Validate session ID format
+  if (sessionId && !/^session_foxmandal_\w+_\d+_[a-z0-9]+$/.test(sessionId)) {
+    return res.status(400).json({ error: 'Invalid session ID format' });
+  }
+  
+  // Validate AI mode
+  const validModes = ['standard', 'agentic', 'agi', 'asi'];
+  if (aiMode && !validModes.includes(aiMode)) {
+    return res.status(400).json({ error: 'Invalid AI mode' });
+  }
+  
+  // Check for suspicious patterns
+  if (containsSuspiciousPatterns(message)) {
+    console.warn('Suspicious pattern detected:', { message: message.substring(0, 100), ip: req.ip });
+    return res.status(400).json({ error: 'Message contains invalid content' });
+  }
+  
+  next();
+};
+
+// Rate limiting middleware (Add this to server.js)
+const rateLimit = require('express-rate-limit');
+
+const createRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: {
+    error: 'Too many requests from this IP, please try again later.',
+    retryAfter: 15 * 60
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Skip rate limiting for health checks
+  skip: (req) => req.path === '/health'
+});
+
+app.use(createRateLimit);
 
 app.use(bodyParser.json());
 app.use(fileUpload({
@@ -455,27 +514,34 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Compatibility endpoint for frontend /chat calls
-app.post('/chat', async (req, res) => {
-  const { message, sessionId } = req.body;
+ // Enhanced /chat route with security (Replace your existing /chat route)
+app.post('/chat', validateRequest, async (req, res) => {
+  const { message, sessionId, aiMode = 'standard' } = req.body;
   const startTime = Date.now();
+  const clientIP = req.ip || req.connection.remoteAddress;
   
-  console.log(`Chat request from ${req.headers.origin}: ${message?.substring(0, 50)}...`);
+  // Log request for monitoring
+  console.log('Chat request:', {
+    sessionId,
+    aiMode,
+    messageLength: message.length,
+    ip: clientIP,
+    userAgent: req.headers['user-agent']?.substring(0, 100)
+  });
   
-  if (!message || typeof message !== 'string') {
-    return res.status(400).json({ error: 'Invalid or missing message' });
-  }
-
   try {
     const legalArea = classifyLegalIntent(message);
     const urgency = assessUrgency(message);
     
+    // Track interaction with client IP (for security monitoring)
     legalAnalytics.trackLegalInteraction(sessionId, {
       type: 'client_query',
-      content: message,
-      legalArea: legalArea,
-      urgency: urgency,
-      sessionId: sessionId
+      content: message.substring(0, 200), // Limit stored content
+      legalArea,
+      urgency,
+      sessionId,
+      clientIP: clientIP.replace(/\.\d+$/, '.xxx'), // Partial IP for privacy
+      timestamp: Date.now()
     });
     
     const legalKnowledge = await getLegalKnowledge(message, legalArea);
@@ -487,43 +553,132 @@ app.post('/chat', async (req, res) => {
       legalKnowledge
     });
     
+    // Response validation
+    if (!reply || typeof reply !== 'string') {
+      throw new Error('Invalid AI response generated');
+    }
+    
+    // Calculate confidence score
+    const confidence = calculateResponseConfidence(reply, legalKnowledge);
+    
     const shouldCaptureLead = legalArea !== 'general_inquiry' && 
                              (urgency === 'high' || message.toLowerCase().includes('consultation'));
     
     legalAnalytics.trackLegalInteraction(sessionId, {
       type: 'ai_response',
-      content: reply,
-      legalArea: legalArea,
+      content: reply.substring(0, 200),
+      legalArea,
       complexity: urgency === 'high' ? 'high' : 'medium',
-      sessionId: sessionId,
+      sessionId,
       responseTime: Date.now() - startTime,
+      confidence,
       leadGenerated: shouldCaptureLead
     });
     
     res.json({ 
-      reply, 
+      reply,
+      confidence,
       userProfile: {
         legalArea,
         urgency,
         needsConsultation: shouldCaptureLead
-      }
+      },
+      disclaimer: confidence < 0.8 ? 
+        "This response has lower confidence and should be verified by a legal professional." :
+        "This is general legal information. Please consult with a qualified lawyer for specific legal advice."
     });
     
   } catch (err) {
-    console.error('Error in chat:', err);
+    console.error('Secure chat error:', {
+      error: err.message,
+      sessionId,
+      ip: clientIP,
+      timestamp: Date.now()
+    });
     
     legalAnalytics.trackLegalInteraction(sessionId, {
       type: 'error',
       content: err.message,
-      sessionId: sessionId
+      sessionId,
+      clientIP: clientIP.replace(/\.\d+$/, '.xxx')
     });
     
     res.status(500).json({ 
-      error: 'Legal consultation system temporarily unavailable', 
-      details: err.message 
+      error: 'Unable to process your request at this time',
+      code: 'PROCESSING_ERROR'
     });
   }
 });
+
+// Confidence calculation function
+function calculateResponseConfidence(reply, knowledgeBase) {
+  let confidence = 0.7; // Base confidence
+  
+  // Increase confidence if response references knowledge base
+  if (knowledgeBase && knowledgeBase.length > 0) {
+    confidence += 0.1;
+  }
+  
+  // Decrease confidence for very short responses
+  if (reply.length < 50) {
+    confidence -= 0.2;
+  }
+  
+  // Check for uncertainty indicators
+  const uncertaintyIndicators = ['might', 'could', 'possibly', 'perhaps', 'may'];
+  const uncertaintyCount = uncertaintyIndicators.reduce((count, indicator) => 
+    count + (reply.toLowerCase().split(indicator).length - 1), 0
+  );
+  
+  confidence -= uncertaintyCount * 0.05;
+  
+  return Math.max(0.3, Math.min(0.95, confidence));
+}
+
+// ===== 3. DATA ENCRYPTION (Add to server.js) =====
+
+const crypto = require('crypto');
+
+// Encryption utilities
+class DataEncryption {
+  constructor() {
+    this.algorithm = 'aes-256-gcm';
+    this.key = process.env.ENCRYPTION_KEY || crypto.randomBytes(32);
+  }
+  
+  encrypt(text) {
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipher(this.algorithm, this.key, iv);
+    
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    
+    const authTag = cipher.getAuthTag();
+    
+    return {
+      encrypted,
+      iv: iv.toString('hex'),
+      authTag: authTag.toString('hex')
+    };
+  }
+  
+  decrypt(encryptedData) {
+    const decipher = crypto.createDecipher(
+      this.algorithm,
+      this.key,
+      Buffer.from(encryptedData.iv, 'hex')
+    );
+    
+    decipher.setAuthTag(Buffer.from(encryptedData.authTag, 'hex'));
+    
+    let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    
+    return decrypted;
+  }
+}
+
+const encryption = new DataEncryption();
 
 // Lead capture endpoint
 app.post('/capture-lead', async (req, res) => {
