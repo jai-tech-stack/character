@@ -1,8 +1,8 @@
-// Enhanced ChatAssistant.jsx - Adding Agentic AI, AGI, ASI to existing chat interface
+// Real AI Chat Assistant - ChatAssistant.jsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import styled, { keyframes } from "styled-components";
 import { useSpeechRecognition } from "react-speech-kit";
-import { sendMessage, getTTS, stopTTS } from "../api/chatApi";
+import { sendMessage, getTTS, stopTTS, captureLead } from "../api/chatApi";
 import { v4 as uuidv4 } from "uuid";
 
 const pulse = keyframes`
@@ -20,6 +20,11 @@ const fadeIn = keyframes`
   to { opacity: 1; }
 `;
 
+const processingPulse = keyframes`
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+`;
+
 const agenticGlow = keyframes`
   0%, 100% { box-shadow: 0 0 20px rgba(184, 115, 51, 0.3); }
   50% { box-shadow: 0 0 40px rgba(184, 115, 51, 0.8); }
@@ -31,6 +36,7 @@ const ChatBtn = styled.button`
   right: 2rem;
   background: ${props => 
     props.listening ? 'linear-gradient(45deg, #b87333, #92400e)' :
+    props.processing ? 'linear-gradient(45deg, #fbbf24, #f59e0b)' :
     props.mode === 'asi' ? 'linear-gradient(45deg, #2d2d7c, #4a4af5)' :
     props.mode === 'agi' ? 'linear-gradient(45deg, #0f3460, #1976d2)' :
     props.mode === 'agentic' ? 'linear-gradient(45deg, #b87333, #f57c00)' :
@@ -49,6 +55,7 @@ const ChatBtn = styled.button`
   transition: all 0.3s ease;
   animation: ${props => 
     props.listening ? pulse : 
+    props.processing ? processingPulse :
     props.mode === 'agentic' ? agenticGlow : 
     'none'
   } 1.5s infinite;
@@ -129,8 +136,16 @@ const ChatHeader = styled.div`
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: ${props => props.listening ? '#b87333' : '#10b981'};
-    animation: ${props => props.listening ? pulse : 'none'} 1s infinite;
+    background: ${props => 
+      props.processing ? '#fbbf24' :
+      props.listening ? '#b87333' : 
+      '#10b981'
+    };
+    animation: ${props => (props.listening || props.processing) ? pulse : 'none'} 1s infinite;
+  }
+  
+  .processing-text {
+    animation: ${processingPulse} 1.5s infinite;
   }
 `;
 
@@ -191,6 +206,16 @@ const Message = styled.div`
       props.mode === 'agentic' ? '#b87333' :
       'transparent'
     };
+    font-weight: 600;
+  }
+  
+  .processing-type {
+    font-size: 0.65rem;
+    background: rgba(251, 191, 36, 0.2);
+    color: #92400e;
+    padding: 0.1rem 0.4rem;
+    border-radius: 8px;
+    font-weight: 600;
   }
   
   .timestamp {
@@ -233,6 +258,13 @@ const Message = styled.div`
       };
     }
   }
+  
+  .confidence-indicator {
+    font-size: 0.7rem;
+    color: #666;
+    margin-top: 0.3rem;
+    font-style: italic;
+  }
 `;
 
 const ModeSelector = styled.div`
@@ -255,10 +287,11 @@ const ModeSelector = styled.div`
   
   .mode-btn {
     background: ${props => 
-      props.activeMode === 'asi' && props.currentBtn === 'asi' ? 'linear-gradient(45deg, #2d2d7c, #4a4af5)' :
-      props.activeMode === 'agi' && props.currentBtn === 'agi' ? 'linear-gradient(45deg, #0f3460, #1976d2)' :
-      props.activeMode === 'agentic' && props.currentBtn === 'agentic' ? 'linear-gradient(45deg, #b87333, #f57c00)' :
-      props.activeMode === 'standard' && props.currentBtn === 'standard' ? 'linear-gradient(45deg, #1e40af, #1e3a8a)' :
+      props.activeMode === props.currentBtn ? 
+        props.currentBtn === 'asi' ? 'linear-gradient(45deg, #2d2d7c, #4a4af5)' :
+        props.currentBtn === 'agi' ? 'linear-gradient(45deg, #0f3460, #1976d2)' :
+        props.currentBtn === 'agentic' ? 'linear-gradient(45deg, #b87333, #f57c00)' :
+        'linear-gradient(45deg, #1e40af, #1e3a8a)' :
       'rgba(0,0,0,0.1)'
     };
     color: ${props => 
@@ -273,9 +306,14 @@ const ModeSelector = styled.div`
     flex: 1;
     min-width: 80px;
     
-    &:hover {
+    &:hover:not(:disabled) {
       transform: translateY(-1px);
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
   }
 `;
@@ -328,185 +366,78 @@ const CloseButton = styled.button`
   }
 `;
 
-// Enhanced AI Processing Classes
-class AgenticAI {
-  async processRequest(message) {
-    const analysis = this.analyzeRequest(message);
-    const actions = await this.planActions(analysis);
-    const results = await this.executeActions(actions);
-    return this.synthesizeResponse(results, message);
+const LeadCaptureForm = styled.div`
+  background: rgba(248, 250, 252, 0.95);
+  border-top: 1px solid rgba(0,0,0,0.1);
+  padding: 1rem;
+  
+  .form-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #374151;
   }
-
-  analyzeRequest(message) {
-    const legalAreas = this.identifyLegalAreas(message);
-    const complexity = this.assessComplexity(message);
-    const urgency = this.assessUrgency(message);
-    return { legalAreas, complexity, urgency };
+  
+  .form-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
   }
-
-  identifyLegalAreas(message) {
-    const areas = [];
-    const lowerMsg = message.toLowerCase();
+  
+  input, textarea {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 0.9rem;
     
-    if (lowerMsg.includes('contract') || lowerMsg.includes('agreement')) areas.push('contract_law');
-    if (lowerMsg.includes('court') || lowerMsg.includes('litigation')) areas.push('litigation');
-    if (lowerMsg.includes('corporate') || lowerMsg.includes('company')) areas.push('corporate_law');
-    if (lowerMsg.includes('property') || lowerMsg.includes('real estate')) areas.push('real_estate');
+    &:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+  }
+  
+  .submit-btn {
+    background: linear-gradient(45deg, #1e40af, #1e3a8a);
+    color: white;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
     
-    return areas.length > 0 ? areas : ['general_legal'];
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
   }
-
-  assessComplexity(message) {
-    const complexIndicators = ['multiple', 'complex', 'international', 'merger', 'acquisition'];
-    return complexIndicators.some(indicator => message.toLowerCase().includes(indicator)) ? 'high' : 'medium';
-  }
-
-  assessUrgency(message) {
-    const urgentWords = ['urgent', 'asap', 'emergency', 'deadline', 'court date'];
-    return urgentWords.some(word => message.toLowerCase().includes(word)) ? 'high' : 'medium';
-  }
-
-  async planActions(analysis) {
-    return [
-      'Autonomous legal research initiation',
-      'Precedent analysis and case law review',
-      'Risk assessment and compliance check',
-      'Strategic recommendation development'
-    ];
-  }
-
-  async executeActions(actions) {
-    return actions.map(action => `Completed: ${action}`);
-  }
-
-  synthesizeResponse(results, originalMessage) {
-    return `Agentic AI Analysis Complete:
-
-I autonomously executed the following actions:
-${results.map((result, i) => `${i + 1}. ${result}`).join('\n')}
-
-Based on my independent analysis, I've identified key legal considerations and developed strategic recommendations. I can now proceed with detailed legal research or provide specific guidance on your matter.
-
-Would you like me to elaborate on any aspect or initiate additional autonomous research?`;
-  }
-}
-
-class AGI {
-  async processRequest(message) {
-    const domains = await this.analyzeAcrossDomains(message);
-    return this.synthesizeCrossDomainResponse(domains, message);
-  }
-
-  async analyzeAcrossDomains(message) {
-    return {
-      legal: await this.analyzeLegalDomain(message),
-      business: await this.analyzeBusinessDomain(message),
-      technical: await this.analyzeTechnicalDomain(message),
-      ethical: await this.analyzeEthicalDomain(message),
-      strategic: await this.analyzeStrategicDomain(message)
-    };
-  }
-
-  async analyzeLegalDomain(message) {
-    return "Comprehensive legal precedent analysis with regulatory compliance assessment";
-  }
-
-  async analyzeBusinessDomain(message) {
-    return "Market implications and commercial viability evaluation";
-  }
-
-  async analyzeTechnicalDomain(message) {
-    return "Implementation requirements and technological considerations";
-  }
-
-  async analyzeEthicalDomain(message) {
-    return "Stakeholder impact and social responsibility assessment";
-  }
-
-  async analyzeStrategicDomain(message) {
-    return "Multi-path strategic analysis with resource optimization";
-  }
-
-  synthesizeCrossDomainResponse(domains, originalMessage) {
-    return `AGI Multi-Domain Analysis:
-
-Legal Domain: ${domains.legal}
-Business Domain: ${domains.business}
-Technical Domain: ${domains.technical}
-Ethical Domain: ${domains.ethical}
-Strategic Domain: ${domains.strategic}
-
-Cross-Domain Integration:
-Based on general intelligence analysis, I recommend a holistic approach that balances legal compliance with business objectives while maintaining ethical standards and technical feasibility.
-
-This comprehensive analysis ensures all relevant factors are considered for optimal decision-making.`;
-  }
-}
-
-class ASI {
-  async processRequest(message) {
-    const superAnalysis = await this.superintelligenceAnalysis(message);
-    return this.generateSuperResponse(superAnalysis, message);
-  }
-
-  async superintelligenceAnalysis(message) {
-    return {
-      quantumAnalysis: await this.performQuantumAnalysis(message),
-      predictiveModeling: await this.generatePredictions(message),
-      scenarioMapping: await this.mapScenarios(message),
-      optimizationPaths: await this.calculateOptimalPaths(message)
-    };
-  }
-
-  async performQuantumAnalysis(message) {
-    return "Quantum-processed analysis of 847,392 legal precedents completed in 0.3 seconds";
-  }
-
-  async generatePredictions(message) {
-    return "15-year outcome projections with 94.3% confidence intervals calculated";
-  }
-
-  async mapScenarios(message) {
-    return "12,847 alternative scenarios modeled with probability distributions";
-  }
-
-  async calculateOptimalPaths(message) {
-    return "347-step optimal strategy path computed with quantum optimization";
-  }
-
-  generateSuperResponse(analysis, originalMessage) {
-    return `ASI Superintelligence Analysis:
-
-Quantum Processing Complete:
-${analysis.quantumAnalysis}
-
-Predictive Modeling:
-${analysis.predictiveModeling}
-
-Scenario Mapping:
-${analysis.scenarioMapping}
-
-Optimization:
-${analysis.optimizationPaths}
-
-Superintelligence Recommendation:
-Execute multi-dimensional strategy with continuous adaptive monitoring through quantum-enhanced feedback systems. Optimal path maintains 96.8% success probability across all projected scenarios.`;
-  }
-}
+`;
 
 export default function ChatAssistant() {
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState([]);
-  const [sessionId] = useState(() => uuidv4());
+  const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`);
   const [isTyping, setIsTyping] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [aiMode, setAIMode] = useState('standard');
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [showLeadCapture, setShowLeadCapture] = useState(false);
+  const [leadData, setLeadData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    message: ''
+  });
   
-  const agenticAI = useRef(new AgenticAI());
-  const agi = useRef(new AGI());
-  const asi = useRef(new ASI());
   const messagesEndRef = useRef(null);
-  const { listen, listening, stop } = useSpeechRecognition({ onResult: handleUser });
+  const { listen, listening, stop } = useSpeechRecognition({ 
+    onResult: handleUser 
+  });
 
   useEffect(() => {
     scrollToBottom();
@@ -520,14 +451,15 @@ export default function ChatAssistant() {
     setIsSpeaking(true);
     try {
       const processedText = text.replace(/Adv\./g, 'Advocate').replace(/Foxmandal/g, 'Foxmandal');
-      await getTTS(processedText);
+      await getTTS(processedText, aiMode);
     } catch (err) {
       console.error("TTS error:", err);
     } finally {
       setIsSpeaking(false);
     }
-  }, []);
+  }, [aiMode]);
 
+  // Real AI processing with genuine mode differences
   async function handleUser(text, isQuickAction = false) {
     if (!text?.trim()) return;
     
@@ -543,42 +475,44 @@ export default function ChatAssistant() {
     }
     
     setIsTyping(true);
+    setIsProcessing(true);
 
     try {
-      let response;
+      console.log(`Processing message with real ${aiMode} AI...`);
       
-      switch (aiMode) {
-        case 'agentic':
-          response = await agenticAI.current.processRequest(text);
-          break;
-        case 'agi':
-          response = await agi.current.processRequest(text);
-          break;
-        case 'asi':
-          response = await asi.current.processRequest(text);
-          break;
-        default:
-          const { reply } = await sendMessage(text, sessionId);
-          response = reply;
-          break;
-      }
+      // Use the real AI processor from chatApi
+      const response = await sendMessage(text, sessionId, aiMode);
       
       setIsTyping(false);
-      setMsgs(prev => [...prev, { 
+      setIsProcessing(false);
+      
+      const aiMessage = {
         from: 'Advocate Arjun', 
-        text: response, 
+        text: response.reply, 
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         id: uuidv4(),
-        mode: aiMode
-      }]);
+        mode: aiMode,
+        processingType: response.processingType,
+        confidence: response.confidence
+      };
+      
+      setMsgs(prev => [...prev, aiMessage]);
+
+      // Check if this looks like a consultation request
+      if (response.reply.toLowerCase().includes('consultation') || 
+          text.toLowerCase().includes('lawyer') ||
+          text.toLowerCase().includes('legal advice')) {
+        setTimeout(() => setShowLeadCapture(true), 2000);
+      }
 
       stop();
-      await speakResponse(response);
+      await speakResponse(response.reply);
 
     } catch (err) {
-      console.error("AI chat error:", err);
+      console.error(`Real ${aiMode} AI error:`, err);
       setIsTyping(false);
-      const errorMsg = "I encountered an issue processing your request. Please try again.";
+      setIsProcessing(false);
+      const errorMsg = `I encountered an issue with ${aiMode} processing. Please try again.`;
       setMsgs(prev => [...prev, { 
         from: 'Advocate Arjun', 
         text: errorMsg, 
@@ -594,16 +528,35 @@ export default function ChatAssistant() {
     if (!open) {
       setOpen(true);
       if (msgs.length === 0) {
-        setTimeout(() => {
-          const welcomeMsg = getModeWelcomeMessage();
-          setMsgs([{
-            from: 'Advocate Arjun',
-            text: welcomeMsg,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            id: uuidv4(),
-            mode: aiMode
-          }]);
-          speakResponse(welcomeMsg);
+        setTimeout(async () => {
+          try {
+            // Get real AI mode introduction
+            const response = await sendMessage(
+              `Introduce yourself as Advocate Arjun in ${aiMode} mode and explain your unique capabilities`,
+              sessionId,
+              aiMode
+            );
+            
+            setMsgs([{
+              from: 'Advocate Arjun',
+              text: response.reply,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              id: uuidv4(),
+              mode: aiMode,
+              processingType: response.processingType
+            }]);
+            speakResponse(response.reply);
+          } catch (error) {
+            const fallbackMsg = getModeWelcomeMessage();
+            setMsgs([{
+              from: 'Advocate Arjun',
+              text: fallbackMsg,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              id: uuidv4(),
+              mode: aiMode
+            }]);
+            speakResponse(fallbackMsg);
+          }
         }, 500);
       }
     }
@@ -612,7 +565,7 @@ export default function ChatAssistant() {
       stopTTS();
       stop();
       setIsSpeaking(false);
-    } else {
+    } else if (!isProcessing) {
       listen({ interimResults: false });
     }
   }
@@ -620,24 +573,75 @@ export default function ChatAssistant() {
   function getModeWelcomeMessage() {
     const messages = {
       standard: "Hello! I'm Advocate Arjun from FoxMandal. How can I assist with your legal matters today?",
-      agentic: "Agentic AI mode activated. I can now autonomously research and analyze complex legal matters for you.",
+      agentic: "Agentic AI mode activated. I can autonomously research and analyze complex legal matters step-by-step.",
       agi: "AGI mode engaged. I'll analyze your legal queries across multiple domains for comprehensive insights.",
-      asi: "ASI superintelligence mode active. Quantum processing capabilities are online for advanced legal analysis."
+      asi: "ASI mode active. Advanced probabilistic analysis and strategic projections are now available."
     };
     return messages[aiMode] || messages.standard;
   }
 
-  function switchMode(mode) {
+  async function switchMode(mode) {
+    if (isProcessing) return; // Prevent mode switching during processing
+    
     setAIMode(mode);
-    const modeMsg = getModeWelcomeMessage();
-    setMsgs(prev => [...prev, {
-      from: 'System',
-      text: `Switched to ${mode.toUpperCase()} mode. ${modeMsg}`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      id: uuidv4(),
-      mode: mode
-    }]);
-    speakResponse(modeMsg);
+    
+    try {
+      // Get real AI explanation of the new mode
+      const response = await sendMessage(
+        `You are now switching to ${mode} mode. Explain how this changes your processing approach and capabilities as Advocate Arjun.`,
+        sessionId,
+        mode
+      );
+      
+      setMsgs(prev => [...prev, {
+        from: 'System',
+        text: `Switched to ${mode.toUpperCase()} mode.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        id: uuidv4(),
+        mode: mode
+      }, {
+        from: 'Advocate Arjun',
+        text: response.reply,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        id: uuidv4(),
+        mode: mode,
+        processingType: response.processingType
+      }]);
+      
+      speakResponse(response.reply);
+    } catch (error) {
+      const modeMsg = getModeWelcomeMessage();
+      setMsgs(prev => [...prev, {
+        from: 'System',
+        text: `Switched to ${mode.toUpperCase()} mode. ${modeMsg}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        id: uuidv4(),
+        mode: mode
+      }]);
+      speakResponse(modeMsg);
+    }
+  }
+
+  async function handleLeadSubmit() {
+    if (!leadData.name || !leadData.email) return;
+    
+    try {
+      await captureLead(leadData, sessionId, aiMode);
+      setShowLeadCapture(false);
+      setLeadData({ name: '', email: '', phone: '', message: '' });
+      
+      const successMsg = "Thank you! Our legal team will contact you within 24 hours for a consultation.";
+      setMsgs(prev => [...prev, {
+        from: 'System',
+        text: successMsg,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        id: uuidv4()
+      }]);
+      speakResponse(successMsg);
+      
+    } catch (error) {
+      console.error('Lead capture error:', error);
+    }
   }
 
   function closeChat() {
@@ -645,11 +649,14 @@ export default function ChatAssistant() {
     stopTTS();
     stop();
     setIsSpeaking(false);
+    setIsProcessing(false);
+    setShowLeadCapture(false);
   }
 
   const getButtonIcon = () => {
+    if (isProcessing) return '⚙️';
     if (listening) return '🔊';
-    if (isSpeaking) return '📢';
+    if (isSpeaking) return '🔢';
     
     switch (aiMode) {
       case 'asi': return '🧠';
@@ -659,16 +666,29 @@ export default function ChatAssistant() {
     }
   };
 
+  const getStatusText = () => {
+    if (isProcessing) return `Processing with ${aiMode.toUpperCase()}...`;
+    if (listening) return 'Listening...';
+    if (isSpeaking) return 'Speaking...';
+    return 'Ready';
+  };
+
   return (
     <>
       {open && (
         <ChatBox mode={aiMode}>
-          <ChatHeader listening={listening || isSpeaking} mode={aiMode}>
+          <ChatHeader 
+            listening={listening || isSpeaking} 
+            processing={isProcessing}
+            mode={aiMode}
+          >
             <div>
               <h3>Advocate Arjun - {aiMode.toUpperCase()}</h3>
               <div className="ai-mode-indicator">
                 <div className="status-dot"></div>
-                {listening ? 'Listening...' : isSpeaking ? 'Speaking...' : 'Ready'}
+                <span className={isProcessing ? 'processing-text' : ''}>
+                  {getStatusText()}
+                </span>
               </div>
             </div>
             <CloseButton onClick={closeChat}>×</CloseButton>
@@ -682,15 +702,25 @@ export default function ChatAssistant() {
                   {msg.mode && msg.from === 'Advocate Arjun' && (
                     <span className="ai-mode-badge">{msg.mode.toUpperCase()}</span>
                   )}
+                  {msg.processingType && (
+                    <span className="processing-type">{msg.processingType}</span>
+                  )}
                   <span className="timestamp">{msg.timestamp}</span>
                 </div>
-                <div className="content">{msg.text}</div>
+                <div className="content">
+                  {msg.text}
+                  {msg.confidence && (
+                    <div className="confidence-indicator">
+                      Confidence: {Math.round(msg.confidence * 100)}%
+                    </div>
+                  )}
+                </div>
               </Message>
             ))}
             
             {isTyping && (
               <TypingIndicator>
-                <span>Advocate Arjun is processing ({aiMode.toUpperCase()})...</span>
+                <span>Advocate Arjun is processing with {aiMode.toUpperCase()}...</span>
                 <div className="dots">
                   <div className="dot"></div>
                   <div className="dot"></div>
@@ -702,6 +732,45 @@ export default function ChatAssistant() {
             <div ref={messagesEndRef} />
           </MessagesContainer>
           
+          {showLeadCapture && (
+            <LeadCaptureForm>
+              <div className="form-title">Schedule Legal Consultation</div>
+              <div className="form-row">
+                <input
+                  type="text"
+                  placeholder="Your Name"
+                  value={leadData.name}
+                  onChange={(e) => setLeadData({...leadData, name: e.target.value})}
+                />
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={leadData.email}
+                  onChange={(e) => setLeadData({...leadData, email: e.target.value})}
+                />
+              </div>
+              <input
+                type="tel"
+                placeholder="Phone Number"
+                value={leadData.phone}
+                onChange={(e) => setLeadData({...leadData, phone: e.target.value})}
+              />
+              <textarea
+                placeholder="Brief description of your legal matter"
+                value={leadData.message}
+                onChange={(e) => setLeadData({...leadData, message: e.target.value})}
+                rows="2"
+              />
+              <button 
+                className="submit-btn"
+                onClick={handleLeadSubmit}
+                disabled={!leadData.name || !leadData.email}
+              >
+                Schedule Consultation
+              </button>
+            </LeadCaptureForm>
+          )}
+          
           <ModeSelector activeMode={aiMode}>
             <div className="mode-title">AI Intelligence Level</div>
             <div className="mode-buttons">
@@ -709,6 +778,7 @@ export default function ChatAssistant() {
                 className="mode-btn" 
                 currentBtn="standard"
                 onClick={() => switchMode('standard')}
+                disabled={isProcessing}
               >
                 Standard
               </button>
@@ -716,6 +786,7 @@ export default function ChatAssistant() {
                 className="mode-btn"
                 currentBtn="agentic" 
                 onClick={() => switchMode('agentic')}
+                disabled={isProcessing}
               >
                 Agentic
               </button>
@@ -723,6 +794,7 @@ export default function ChatAssistant() {
                 className="mode-btn"
                 currentBtn="agi"
                 onClick={() => switchMode('agi')}
+                disabled={isProcessing}
               >
                 AGI
               </button>
@@ -730,6 +802,7 @@ export default function ChatAssistant() {
                 className="mode-btn"
                 currentBtn="asi"
                 onClick={() => switchMode('asi')}
+                disabled={isProcessing}
               >
                 ASI
               </button>
@@ -740,9 +813,15 @@ export default function ChatAssistant() {
       
       <ChatBtn 
         listening={listening || isSpeaking}
+        processing={isProcessing}
         mode={aiMode}
         onClick={toggleRecording}
-        title={`${aiMode.toUpperCase()} Mode - ${listening ? "Stop listening" : isSpeaking ? "Speaking..." : "Start chat"}`}
+        title={`${aiMode.toUpperCase()} Mode - ${
+          isProcessing ? "Processing..." :
+          listening ? "Stop listening" : 
+          isSpeaking ? "Speaking..." : 
+          "Start chat"
+        }`}
       >
         {getButtonIcon()}
       </ChatBtn>
