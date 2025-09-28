@@ -1,34 +1,15 @@
-// Enhanced CharacterView.jsx - Adding Agentic AI, AGI, ASI features to existing file
+// CharacterView.jsx with Fixed TTS and Pronunciation
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import styled, { keyframes, createGlobalStyle } from "styled-components";
 import { useSpeechRecognition } from "react-speech-kit";
 import { sendMessage, getTTS, stopTTS } from "../api/chatApi";
 
-// Enhanced animations for different AI modes
-const morphBackground = keyframes`
-  0% { background: radial-gradient(circle at 20% 50%, #667eea 0%, #764ba2 50%, #1e3a8a 100%); }
-  25% { background: radial-gradient(circle at 80% 20%, #764ba2 0%, #1e3a8a 50%, #667eea 100%); }
-  50% { background: radial-gradient(circle at 50% 80%, #1e3a8a 0%, #667eea 50%, #764ba2 100%); }
-  75% { background: radial-gradient(circle at 10% 10%, #667eea 0%, #1e3a8a 50%, #764ba2 100%); }
-  100% { background: radial-gradient(circle at 20% 50%, #667eea 0%, #764ba2 50%, #1e3a8a 100%); }
-`;
-
-const agenticPulse = keyframes`
-  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(184, 115, 51, 0.7); }
-  50% { transform: scale(1.1); box-shadow: 0 0 0 20px rgba(184, 115, 51, 0.3); }
-  100% { transform: scale(1); box-shadow: 0 0 0 40px rgba(184, 115, 51, 0); }
-`;
-
-const superintelligenceSpin = keyframes`
-  0% { transform: rotate(0deg) scale(1); }
-  25% { transform: rotate(90deg) scale(1.05); }
-  50% { transform: rotate(180deg) scale(1.1); }
-  75% { transform: rotate(270deg) scale(1.05); }
-  100% { transform: rotate(360deg) scale(1); }
-`;
-
 const fadeIn = keyframes`from { opacity:0 } to { opacity:1 }`;
+const pulse = keyframes`
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+`;
 
 const GlobalStyles = createGlobalStyle`
   * { box-sizing: border-box; }
@@ -40,485 +21,525 @@ const Container = styled.div`
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  animation: ${morphBackground} 15s infinite ease-in-out;
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
   transition: background 0.8s ease;
   
-  &.standard-mode { 
-    background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
-  }
-  
-  &.agentic-mode { 
-    background: linear-gradient(135deg, #7c2d12 0%, #92400e 50%, #b87333 100%);
-    animation: ${morphBackground} 8s infinite ease-in-out;
-  }
-  
-  &.agi-mode { 
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-    animation: ${morphBackground} 12s infinite ease-in-out;
-  }
-  
-  &.asi-mode { 
-    background: radial-gradient(circle at 50% 50%, #0a0a23 0%, #1a1a40 50%, #2d2d7c 100%);
-    animation: ${morphBackground} 20s infinite linear;
-  }
+  &.corporate-mode { background: linear-gradient(135deg, #1e40af 0%, #3730a3 100%); }
+  &.litigation-mode { background: linear-gradient(135deg, #7c2d12 0%, #92400e 100%); }
+  &.consultation-mode { background: linear-gradient(135deg, #b87333 0%, #d97706 100%); }
 `;
 
-// Enhanced AI Core with different modes
-const AICore = styled.div`
+const Tooltip = styled.div`
   position: absolute;
-  top: 50%;
+  top: 1rem;
   left: 50%;
-  transform: translate(-50%, -50%);
-  width: ${props => props.size || '200px'};
-  height: ${props => props.size || '200px'};
-  border-radius: 50%;
-  background: ${props => 
-    props.mode === 'asi' ? 'linear-gradient(45deg, #2d2d7c, #4a4af5, #7c7cff)' :
-    props.mode === 'agi' ? 'linear-gradient(45deg, #0f3460, #1976d2, #42a5f5)' :
-    props.mode === 'agentic' ? 'linear-gradient(45deg, #b87333, #f57c00, #ffb74d)' :
-    'linear-gradient(45deg, #667eea, #764ba2)'
-  };
-  animation: ${props => 
-    props.isSpeaking ? agenticPulse :
-    props.mode === 'asi' ? superintelligenceSpin :
-    props.mode === 'agi' ? superintelligenceSpin :
-    props.mode === 'agentic' ? agenticPulse :
-    'none'
-  } ${props => 
-    props.mode === 'asi' ? '1s' :
-    props.mode === 'agi' ? '2s' :
-    '3s'
-  } infinite ease-in-out;
-  box-shadow: 
-    0 0 50px ${props => 
-      props.mode === 'asi' ? 'rgba(125, 125, 255, 0.5)' :
-      props.mode === 'agi' ? 'rgba(25, 118, 210, 0.5)' :
-      props.mode === 'agentic' ? 'rgba(184, 115, 51, 0.5)' :
-      'rgba(102, 126, 234, 0.3)'
-    },
-    inset 0 0 50px rgba(255, 255, 255, 0.1);
-  cursor: pointer;
-  transition: all 0.3s ease;
-  
-  &:hover {
-    transform: translate(-50%, -50%) scale(1.1);
-    box-shadow: 
-      0 0 100px ${props => 
-        props.mode === 'asi' ? 'rgba(125, 125, 255, 0.8)' :
-        props.mode === 'agi' ? 'rgba(25, 118, 210, 0.8)' :
-        props.mode === 'agentic' ? 'rgba(184, 115, 51, 0.8)' :
-        'rgba(102, 126, 234, 0.5)'
-      };
-  }
-  
-  &::after {
-    content: ${props => 
-      props.mode === 'asi' ? '"🧠"' :
-      props.mode === 'agi' ? '"🤖"' :
-      props.mode === 'agentic' ? '"🔬"' :
-      '"⚖️"'
-    };
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 4rem;
-    filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.8));
-  }
-`;
-
-const ModeSelector = styled.div`
-  position: absolute;
-  top: 2rem;
-  left: 2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.8);
+  color: white;
+  padding: 0.8rem 1.2rem;
+  border-radius: 25px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  animation: ${fadeIn} 0.5s ease;
+  backdrop-filter: blur(10px);
   z-index: 100;
   
   @media (max-width: 768px) {
-    top: 1rem;
-    left: 1rem;
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-`;
-
-const ModeButton = styled.button`
-  background: ${props => props.active ? 
-    'linear-gradient(45deg, #b87333, #92400e)' : 
-    'rgba(255, 255, 255, 0.1)'
-  };
-  border: 2px solid ${props => props.active ? '#b87333' : 'rgba(255, 255, 255, 0.3)'};
-  color: white;
-  padding: 0.8rem 1.5rem;
-  border-radius: 25px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 600;
-  backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
-  min-width: 120px;
-  
-  &:hover {
-    background: linear-gradient(45deg, #b87333, #92400e);
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-  }
-  
-  @media (max-width: 768px) {
-    padding: 0.6rem 1rem;
     font-size: 0.8rem;
-    min-width: 100px;
-  }
-`;
-
-const StatusDisplay = styled.div`
-  position: absolute;
-  top: 2rem;
-  right: 2rem;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(10px);
-  color: white;
-  padding: 1rem 1.5rem;
-  border-radius: 20px;
-  border: 1px solid rgba(184, 115, 51, 0.3);
-  
-  .mode-info {
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-    color: ${props => 
-      props.mode === 'asi' ? '#7c7cff' :
-      props.mode === 'agi' ? '#42a5f5' :
-      props.mode === 'agentic' ? '#ffb74d' :
-      '#667eea'
-    };
-  }
-  
-  .status-text {
-    font-size: 0.9rem;
-    opacity: 0.9;
-  }
-  
-  @media (max-width: 768px) {
-    top: 1rem;
-    right: 1rem;
-    padding: 0.8rem 1.2rem;
-  }
-`;
-
-const ResponseBubble = styled.div`
-  position: absolute;
-  bottom: 8rem;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(20px);
-  color: white;
-  padding: 2rem;
-  border-radius: 30px;
-  max-width: 80vw;
-  width: auto;
-  min-width: 300px;
-  box-shadow: 
-    0 20px 60px rgba(0, 0, 0, 0.5),
-    0 0 50px ${props => 
-      props.mode === 'asi' ? 'rgba(125, 125, 255, 0.3)' :
-      props.mode === 'agi' ? 'rgba(25, 118, 210, 0.3)' :
-      props.mode === 'agentic' ? 'rgba(184, 115, 51, 0.3)' :
-      'rgba(102, 126, 234, 0.3)'
-    };
-  border: 1px solid ${props => 
-    props.mode === 'asi' ? 'rgba(125, 125, 255, 0.5)' :
-    props.mode === 'agi' ? 'rgba(25, 118, 210, 0.5)' :
-    props.mode === 'agentic' ? 'rgba(184, 115, 51, 0.5)' :
-    'rgba(102, 126, 234, 0.5)'
-  };
-  animation: ${props => props.isSpeaking ? agenticPulse : 'none'} 2s infinite;
-  z-index: 90;
-  
-  @media (max-width: 768px) {
+    padding: 0.6rem 1rem;
+    top: 0.5rem;
     left: 1rem;
     right: 1rem;
     transform: none;
+    text-align: center;
+  }
+`;
+
+const ChatBubble = styled.div`
+  position: absolute;
+  bottom: 8rem;
+  left: 2rem;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  padding: 1.5rem;
+  border-radius: 20px;
+  max-width: 400px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  border: 1px solid rgba(184, 115, 51, 0.3);
+  animation: ${fadeIn} 0.5s ease;
+  z-index: 90;
+
+  @media (max-width: 768px) {
+    left: 1rem;
+    right: 1rem;
+    bottom: 6rem;
     max-width: none;
-    padding: 1.5rem;
+    padding: 1.2rem;
   }
 
-  .response-text {
-    font-size: 1.1rem;
-    line-height: 1.6;
-    margin: 0;
-    text-align: center;
-    white-space: pre-line;
+  p { 
+    margin: 0; 
+    font-size: 1rem; 
+    line-height: 1.5; 
+    color: #1e40af;
     
     @media (max-width: 768px) {
-      font-size: 1rem;
+      font-size: 0.9rem;
     }
   }
-  
+
   .close-btn {
     position: absolute;
     top: 1rem;
     right: 1rem;
-    background: rgba(184, 115, 51, 0.3);
+    background: none;
     border: none;
-    color: white;
+    font-size: 1.2rem;
+    cursor: pointer;
+    color: #64748b;
     width: 30px;
     height: 30px;
     border-radius: 50%;
-    cursor: pointer;
-    font-size: 1rem;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.3s ease;
     
-    &:hover {
-      background: rgba(184, 115, 51, 0.6);
-      transform: scale(1.1);
+    &:hover { 
+      color: #b87333; 
+      background: rgba(184, 115, 51, 0.1);
     }
   }
 `;
 
-// Agentic AI Class
-class AgenticLegalAI {
-  constructor() {
-    this.capabilities = {
-      'legal_research': 'Autonomous legal research and case analysis',
-      'document_analysis': 'Independent document review and risk assessment',
-      'strategy_planning': 'Multi-step legal strategy development',
-      'compliance_check': 'Regulatory compliance verification',
-      'case_prediction': 'Outcome prediction based on precedents'
-    };
+const InteractionButton = styled.button`
+  position: absolute;
+  bottom: 2rem;
+  left: 2rem;
+  padding: 1rem 2rem;
+  border-radius: 50px;
+  background: ${props => props.listening ? '#b87333' : 'rgba(30, 64, 175, 0.9)'};
+  color: white;
+  border: 2px solid rgba(184, 115, 51, 0.3);
+  backdrop-filter: blur(20px);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  animation: ${props => props.listening ? pulse : 'none'} 1.5s infinite;
+  z-index: 100;
+
+  @media (max-width: 768px) {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 1rem;
+    padding: 0.8rem 1.5rem;
+    font-size: 0.9rem;
   }
 
-  async processAgenticRequest(query) {
-    const analysis = this.analyzeRequest(query);
-    const plan = await this.createActionPlan(analysis);
-    const results = await this.executeAutonomously(plan);
-    return this.synthesizeResponse(results, query);
+  &:hover {
+    background: ${props => props.listening ? '#92400e' : 'rgba(30, 64, 175, 1)'};
+    box-shadow: 0 8px 25px rgba(0,0,0,0.2);
   }
 
-  analyzeRequest(query) {
-    const lowerQuery = query.toLowerCase();
-    const detectedAreas = [];
-    const urgency = this.assessUrgency(query);
+  &:active {
+    transform: scale(0.95);
+  }
+`;
+
+const ContactForm = styled.div`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(30px);
+  padding: 2.5rem;
+  border-radius: 20px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  border: 1px solid rgba(184, 115, 51, 0.2);
+  z-index: 200;
+  animation: ${fadeIn} 0.5s ease;
+
+  @media (max-width: 768px) {
+    padding: 2rem 1.5rem;
+    width: 95%;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  h3 { 
+    margin: 0 0 2rem 0; 
+    text-align: center; 
+    color: #1e40af;
+    font-size: 1.5rem;
+    font-weight: 700;
     
-    if (lowerQuery.includes('contract') || lowerQuery.includes('agreement')) {
-      detectedAreas.push('contract_law');
+    @media (max-width: 768px) {
+      font-size: 1.3rem;
+      margin-bottom: 1.5rem;
     }
-    if (lowerQuery.includes('litigation') || lowerQuery.includes('court')) {
-      detectedAreas.push('litigation');
-    }
-    if (lowerQuery.includes('corporate') || lowerQuery.includes('business')) {
-      detectedAreas.push('corporate_law');
+  }
+
+  input, textarea, select {
+    width: 100%; 
+    margin-bottom: 1.5rem; 
+    padding: 1rem; 
+    border: 2px solid rgba(30, 64, 175, 0.1);
+    border-radius: 12px; 
+    font-size: 1rem; 
+    background: rgba(255, 255, 255, 0.8);
+    transition: all 0.3s ease;
+    
+    &:focus { 
+      outline: none; 
+      border-color: #b87333;
+      background: white;
+      box-shadow: 0 0 0 3px rgba(184, 115, 51, 0.1);
     }
     
-    return { areas: detectedAreas, urgency, complexity: 'high' };
-  }
-
-  async createActionPlan(analysis) {
-    return {
-      steps: [
-        'Research relevant legal precedents',
-        'Analyze applicable statutes and regulations',
-        'Evaluate potential risks and opportunities',
-        'Develop strategic recommendations',
-        'Create implementation timeline'
-      ],
-      priority: analysis.urgency,
-      resources: analysis.areas
-    };
-  }
-
-  async executeAutonomously(plan) {
-    const results = [];
-    for (const step of plan.steps) {
-      results.push(`Executed: ${step} - Analysis complete`);
+    @media (max-width: 768px) {
+      padding: 0.8rem;
+      font-size: 0.9rem;
+      margin-bottom: 1.2rem;
     }
-    return results;
   }
 
-  synthesizeResponse(results, originalQuery) {
-    return `Agentic Legal Analysis Complete:
-
-I autonomously analyzed your query and executed the following actions:
-
-${results.map((result, i) => `${i + 1}. ${result}`).join('\n')}
-
-Based on my independent analysis, I recommend proceeding with a comprehensive legal strategy that addresses all identified risk factors while maximizing opportunities for favorable outcomes.
-
-Would you like me to elaborate on any specific aspect or initiate additional autonomous research?`;
+  textarea { 
+    height: 120px; 
+    resize: vertical;
+    font-family: inherit;
   }
 
-  assessUrgency(query) {
-    const urgentKeywords = ['urgent', 'asap', 'emergency', 'deadline', 'court date'];
-    return urgentKeywords.some(keyword => query.toLowerCase().includes(keyword)) ? 'high' : 'medium';
+  .buttons { 
+    display: flex; 
+    gap: 1rem; 
+    justify-content: center;
+    flex-wrap: wrap;
   }
-}
+
+  .btn {
+    padding: 1rem 2rem; 
+    border: none; 
+    border-radius: 12px; 
+    cursor: pointer; 
+    font-size: 1rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    min-width: 120px;
+    
+    @media (max-width: 768px) {
+      padding: 0.8rem 1.5rem;
+      font-size: 0.9rem;
+      min-width: 100px;
+    }
+    
+    &.submit { 
+      background: linear-gradient(45deg, #b87333, #92400e);
+      color: white; 
+      box-shadow: 0 4px 15px rgba(184, 115, 51, 0.3);
+      
+      &:hover { 
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(184, 115, 51, 0.4);
+      }
+    }
+    
+    &.cancel { 
+      background: rgba(100, 116, 139, 0.2);
+      color: #475569;
+      border: 2px solid rgba(100, 116, 139, 0.3);
+      
+      &:hover { 
+        background: rgba(100, 116, 139, 0.3);
+        transform: translateY(-2px);
+      }
+    }
+  }
+`;
+
+const HotspotInfo = styled.div`
+  position: absolute;
+  bottom: 12rem;
+  right: 2rem;
+  background: rgba(0,0,0,0.8);
+  color: white;
+  padding: 1rem 1.5rem;
+  border-radius: 15px;
+  font-size: 0.9rem;
+  max-width: 300px;
+  backdrop-filter: blur(10px);
+  animation: ${fadeIn} 0.5s ease;
+  
+  @media (max-width: 768px) {
+    right: 1rem;
+    left: 1rem;
+    bottom: 10rem;
+    max-width: none;
+    text-align: center;
+  }
+`;
 
 export default function CharacterView({ onMessage }) {
   const container = useRef();
-  const agenticAI = useRef(new AgenticLegalAI());
-  
   const [loading, setLoading] = useState(true);
   const [aiText, setAiText] = useState("");
-  const [showResponse, setShowResponse] = useState(false);
-  const [aiMode, setAiMode] = useState('standard'); // standard, agentic, agi, asi
-  const [aiState, setAiState] = useState('idle'); // idle, listening, thinking, speaking
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [currentMode, setCurrentMode] = useState('default');
+  const [hotspotInfo, setHotspotInfo] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
-  
+  const [formData, setFormData] = useState({ 
+    name: "", 
+    email: "", 
+    phone: "",
+    legalArea: "corporate_law",
+    urgency: "medium",
+    message: "" 
+  });
   const { listen, listening, stop } = useSpeechRecognition({ onResult: handleVoiceCommand });
 
-  // Enhanced voice command handler with different AI modes
+  const hotspotPrompts = {
+    services: "What comprehensive legal services does FoxMandal offer to clients in India?",
+    expertise: "Tell me about Fox Man-dal's areas of legal expertise and specialization in Indian law",
+    consultation: "I want to schedule a legal consultation with FoxMandal legal team"
+  };
+
+  const modeContexts = {
+    services: 'corporate-mode',
+    expertise: 'litigation-mode', 
+    consultation: 'consultation-mode'
+  };
+
+  // Enhanced voice command handler with better TTS control
   async function handleVoiceCommand(text) {
     if (!text?.trim()) return;
     
-    setAiState('thinking');
+    // Stop any ongoing speech
     stopTTS();
     stop();
     
-    setShowResponse(true);
-    setAiText("Processing your request...");
+    setAiText("Analyzing your legal query...");
+    setHotspotInfo("");
 
     try {
-      let response;
+      const { reply } = await sendMessage(text);
+      setAiText(reply);
+      onMessage?.(reply);
       
-      switch (aiMode) {
-        case 'agentic':
-          setAiText("Initiating autonomous legal analysis...");
-          response = await agenticAI.current.processAgenticRequest(text);
-          break;
-          
-        case 'agi':
-          setAiText("Engaging general intelligence protocols...");
-          response = await simulateAGI(text);
-          break;
-          
-        case 'asi':
-          setAiText("Activating superintelligence systems...");
-          response = await simulateASI(text);
-          break;
-          
-        default:
-          const { reply } = await sendMessage(text);
-          response = reply;
-          break;
+      // Determine interaction mode based on response
+      const lowerReply = reply.toLowerCase();
+      if (lowerReply.includes('consultation') || lowerReply.includes('legal advice') || lowerReply.includes('schedule')) {
+        setCurrentMode('consultation-mode');
+        setTimeout(() => setShowContactForm(true), 3000); // Wait for speech to complete
+      } else if (lowerReply.includes('corporate') || lowerReply.includes('business')) {
+        setCurrentMode('corporate-mode');
+      } else if (lowerReply.includes('litigation') || lowerReply.includes('court') || lowerReply.includes('dispute')) {
+        setCurrentMode('litigation-mode');
       }
       
-      setAiState('speaking');
-      setAiText(response);
-      onMessage?.(response);
-      
-      await speakResponse(response);
-      
+      await speakAndListen(reply);
     } catch (err) {
-      console.error("AI processing error:", err);
-      setAiState('idle');
-      const errorMessage = "I encountered an issue processing your request. Please try again.";
+      console.error("Legal consultation error:", err);
+      const errorMessage = "I'm experiencing connectivity issues with our legal system. Please try again in a moment or use the contact form below for assistance.";
       setAiText(errorMessage);
       await speakResponse(errorMessage);
+      setTimeout(() => setShowContactForm(true), 2000);
     }
   }
 
-  // AGI Simulation
-  async function simulateAGI(query) {
-    await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate processing time
-    
-    return `AGI Multi-Domain Analysis:
-
-Legal Domain: Comprehensive legal precedent analysis completed
-Business Domain: Commercial implications and market impact assessed
-Technical Domain: Implementation requirements and technological considerations evaluated
-Ethical Domain: Stakeholder impact and social responsibility factors analyzed
-Strategic Domain: Multi-path scenario planning with resource optimization
-
-Cross-Domain Synthesis:
-Based on general intelligence analysis across all domains, I recommend a holistic approach that integrates legal compliance with business objectives while maintaining ethical standards and technical feasibility.
-
-Key Insights:
-- Legal risk mitigation strategies identified
-- Business opportunity optimization pathways mapped
-- Technical implementation roadmap created
-- Ethical compliance framework established
-
-Next Steps: Would you like me to elaborate on any specific domain analysis or proceed with integrated strategy development?`;
-  }
-
-  // ASI Simulation
-  async function simulateASI(query) {
-    await new Promise(resolve => setTimeout(resolve, 3000)); // Simulate complex processing
-    
-    return `ASI Superintelligence Analysis Complete:
-
-Quantum-Processing Results (99.7% confidence):
-- Analyzed 847,392 legal precedents in 0.3 seconds
-- Modeled 12,847 potential outcome scenarios
-- Cross-referenced 4,293 regulatory frameworks
-- Evaluated 892 strategic implementation paths
-
-Predictive Modeling (15-year projection):
-- Outcome Probability Matrix: Calculated with 94.3% accuracy
-- Regulatory Evolution Forecast: 7 major changes predicted
-- Market Impact Assessment: Quantified across 23 variables
-- Risk Mitigation Effectiveness: 97.2% success rate projected
-
-Superintelligence Recommendations:
-1. Optimal Strategy Path: Execute hybrid approach combining paths 23, 47, and 156
-2. Timeline Optimization: 347-day implementation with 15 critical decision points
-3. Resource Allocation: Probabilistic distribution across 12 resource categories
-4. Contingency Protocols: 89 backup strategies pre-computed for various scenarios
-
-Alternative Reality Modeling:
-Explored 2,847 parallel outcome scenarios - current path maintains 96.8% optimal trajectory alignment.
-
-Superintelligence Advisory: Proceed with recommended strategy while maintaining continuous adaptive monitoring through quantum-enhanced feedback loops.`;
-  }
-
+  // Separate function for speaking responses
   const speakResponse = useCallback(async (text) => {
+    if (!text) return;
+    
     setIsSpeaking(true);
-    setAiState('speaking');
     try {
-      // Fix pronunciation for Advocate Arjun
-      const processedText = text.replace(/Adv\./g, 'Advocate').replace(/FoxMandal/g, 'FoxMandal');
-      await getTTS(processedText);
+      await getTTS(text);
     } catch (err) {
       console.error("TTS error:", err);
     } finally {
       setIsSpeaking(false);
-      setAiState('idle');
     }
   }, []);
 
-  // Three.js Scene (simplified version)
+  // Enhanced speak and listen function
+  const speakAndListen = useCallback(async (text) => {
+    stop(); // Stop listening first
+    
+    // Speak the response
+    await speakResponse(text);
+    
+    // Resume listening after speech completes, with a small delay
+    setTimeout(() => {
+      if (!showContactForm) { // Don't resume listening if form is shown
+        listen({ interimResults: false });
+      }
+    }, 500);
+  }, [stop, listen, showContactForm, speakResponse]);
+
+  // Enhanced THREE.js scene (simplified for better performance)
   useEffect(() => {
     const el = container.current;
     const scene = new THREE.Scene();
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(el.clientWidth, el.clientHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     el.appendChild(renderer.domElement);
 
-    const camera = new THREE.PerspectiveCamera(75, el.clientWidth / el.clientHeight, 0.1, 1000);
-    camera.position.z = 5;
+    const camera = new THREE.PerspectiveCamera(65, el.clientWidth / el.clientHeight, 0.1, 500);
+    camera.position.set(0, 0, 2.5);
+    
+    let mouseX = 0, mouseY = 0;
+    
+    const onMouseMove = (event) => {
+      mouseX = (event.clientX - window.innerWidth / 2) / 100;
+      mouseY = (event.clientY - window.innerHeight / 2) / 100;
+    };
+    window.addEventListener('mousemove', onMouseMove);
 
-    const geometry = new THREE.BoxGeometry();
-    const material = new THREE.MeshBasicMaterial({ color: 0x667eea, transparent: true, opacity: 0.3 });
-    const cube = new THREE.Mesh(geometry, material);
-    scene.add(cube);
+    // Lighting setup
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+    scene.add(ambientLight);
+    
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(5, 5, 5);
+    directionalLight.castShadow = true;
+    scene.add(directionalLight);
+
+    // Main display plane
+    const geometry = new THREE.PlaneGeometry(2.5, 1.8);
+    let material = new THREE.MeshLambertMaterial({ 
+      color: 0x1e40af, 
+      transparent: true, 
+      opacity: 0.9 
+    });
+    const plane = new THREE.Mesh(geometry, material);
+    plane.receiveShadow = true;
+    scene.add(plane);
+
+    // Try to load Fox Mandal texture
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.load(
+      "/logo.png", // You can add this image
+      (texture) => { 
+        plane.material = new THREE.MeshLambertMaterial({ map: texture });
+        setLoading(false);
+      },
+      undefined,
+      () => { 
+        console.log("FoxMandal texture not found - using legal blue background");
+        setLoading(false);
+      }
+    );
+
+    // Legal service hotspots
+    const hotspotCoords = { 
+      services: [0.8, 0.4, 0.01], 
+      expertise: [-0.8, 0.3, 0.01], 
+      consultation: [0, -0.5, 0.01] 
+    };
+    const hotspots = {};
+
+    Object.entries(hotspotCoords).forEach(([key, pos]) => {
+      const sphere = new THREE.Mesh(
+        new THREE.SphereGeometry(0.06, 32, 32),
+        new THREE.MeshLambertMaterial({ 
+          color: 0xb87333, 
+          transparent: true, 
+          opacity: 0.9,
+          emissive: 0xb87333,
+          emissiveIntensity: 0.2
+        })
+      );
+      sphere.position.set(...pos);
+      sphere.name = key;
+      sphere.castShadow = true;
+      scene.add(sphere);
+      hotspots[key] = sphere;
+
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.08, 0.12, 32),
+        new THREE.MeshLambertMaterial({ 
+          color: 0xb87333, 
+          transparent: true, 
+          opacity: 0.4 
+        })
+      );
+      ring.position.set(...pos);
+      scene.add(ring);
+      hotspots[key + "_ring"] = ring;
+    });
+
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    function onPointerDown(e) {
+      if (e.target !== renderer.domElement) return;
+      
+      const { left, top, width, height } = el.getBoundingClientRect();
+      mouse.x = ((e.clientX - left) / width) * 2 - 1;
+      mouse.y = -((e.clientY - top) / height) * 2 + 1;
+      
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObjects(scene.children);
+      const hit = hits.find(h => hotspotCoords[h.object.name]);
+      
+      if (hit) {
+        const hotspotName = hit.object.name;
+        setCurrentMode(modeContexts[hotspotName] || 'default');
+        setHotspotInfo(`Exploring: ${hotspotName.toUpperCase()}`);
+        
+        handleVoiceCommand(hotspotPrompts[hotspotName] || hotspotName);
+      }
+    }
+
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("touchstart", onPointerDown);
 
     function animate() {
-      requestAnimationFrame(animate);
-      cube.rotation.x += 0.01;
-      cube.rotation.y += 0.01;
+      const time = Date.now() * 0.002;
+      
+      // Camera movement based on mouse
+      camera.position.x += (mouseX - camera.position.x) * 0.05;
+      camera.position.y += (-mouseY - camera.position.y) * 0.05;
+      camera.lookAt(scene.position);
+      
+      // Animate hotspots
+      Object.entries(hotspots).forEach(([key, obj]) => {
+        if (key.includes("_ring")) {
+          const scale = 1 + 0.15 * Math.sin(time * 2);
+          obj.scale.setScalar(scale);
+          obj.rotation.z = time * 0.5;
+        } else {
+          const scale = 1 + 0.1 * Math.sin(time * 1.8);
+          obj.scale.setScalar(scale);
+        }
+      });
+      
       renderer.render(scene, camera);
+      requestAnimationFrame(animate);
     }
 
     animate();
-    setLoading(false);
+
+    const onResize = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      renderer.setSize(w, h);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    };
+    
+    window.addEventListener("resize", onResize);
 
     return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("touchstart", onPointerDown);
+      window.removeEventListener('mousemove', onMouseMove);
       if (el.contains(renderer.domElement)) {
         el.removeChild(renderer.domElement);
       }
@@ -526,112 +547,156 @@ Superintelligence Advisory: Proceed with recommended strategy while maintaining 
     };
   }, []);
 
-  const handleAIClick = () => {
-    if (aiState === 'listening' || aiState === 'speaking') {
-      stopTTS();
-      stop();
-      setAiState('idle');
-      setIsSpeaking(false);
-    } else {
-      setAiState('listening');
-      listen({ interimResults: false });
-    }
+  const handleGreetAndListen = async () => {
+    // Fixed greeting with proper pronunciation
+    const greeting = "Hello! I'm Advocate Arjun, your AI legal consultant from FoxMandal, one of India's premier law firms. I'm here to help you understand our legal services, discuss your legal needs, or provide guidance on Indian law. How can I assist you with your legal matters today?";
+    
+    setAiText(greeting);
+    onMessage?.(greeting);
+    
+    // Speak greeting and then start listening
+    await speakAndListen(greeting);
   };
 
-  const switchMode = (mode) => {
-    setAiMode(mode);
-    setAiState('idle');
+  const handleStopInteraction = () => {
     stopTTS();
     stop();
     setIsSpeaking(false);
-    
-    // Mode-specific greeting
-    const greetings = {
-      standard: "Standard legal AI activated. How can I assist you today?",
-      agentic: "Agentic AI mode enabled. I can now autonomously research and analyze complex legal matters.",
-      agi: "AGI mode activated. I will analyze your request across multiple domains for comprehensive insights.",
-      asi: "ASI superintelligence mode engaged. Quantum processing capabilities are now online."
-    };
-    
-    setAiText(greetings[mode]);
-    setShowResponse(true);
-    speakResponse(greetings[mode]);
   };
 
-  const getStatusText = () => {
-    const modeLabels = {
-      standard: 'Standard AI',
-      agentic: 'Agentic Agent',
-      agi: 'General Intelligence',
-      asi: 'Superintelligence'
-    };
+  const handleFormSubmit = async () => {
+    if (!formData.name?.trim() || !formData.email?.trim() || !formData.phone?.trim()) {
+      alert("Please fill in your name, email, and phone number");
+      return;
+    }
     
-    const stateLabels = {
-      idle: 'Ready',
-      listening: 'Listening...',
-      thinking: 'Processing...',
-      speaking: 'Speaking...'
-    };
-    
-    return `${modeLabels[aiMode]} - ${stateLabels[aiState]}`;
-  };
+    try {
+      const response = await fetch('https://character-chan.onrender.com/capture-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          legalArea: formData.legalArea,
+          urgency: formData.urgency,
+          message: formData.message,
+          sessionId: `session_${Date.now()}`,
+          source: 'character_view_form'
+        })
+      });
 
-  const getAISize = () => {
-    switch (aiMode) {
-      case 'asi': return '350px';
-      case 'agi': return '300px';
-      case 'agentic': return '250px';
-      default: return '200px';
+      if (response.ok) {
+        setShowContactForm(false);
+        const successMessage = "Thank you for your interest! Our legal team will contact you within 24 hours to schedule your consultation and discuss your legal needs in detail.";
+        setAiText(successMessage);
+        await speakResponse(successMessage);
+        
+        setFormData({ 
+          name: "", 
+          email: "", 
+          phone: "",
+          legalArea: "corporate_law",
+          urgency: "medium",
+          message: "" 
+        });
+        setCurrentMode('default');
+      } else {
+        throw new Error('Submission failed');
+      }
+    } catch (error) {
+      console.error('Form submission error:', error);
+      alert('There was an issue submitting your request. Please try again or contact us directly.');
     }
   };
+
 
   return (
     <>
       <GlobalStyles />
-      <Container ref={container} className={`${aiMode}-mode`}>
-        <ModeSelector>
-          <ModeButton active={aiMode === 'standard'} onClick={() => switchMode('standard')}>
-            Standard AI
-          </ModeButton>
-          <ModeButton active={aiMode === 'agentic'} onClick={() => switchMode('agentic')}>
-            Agentic AI
-          </ModeButton>
-          <ModeButton active={aiMode === 'agi'} onClick={() => switchMode('agi')}>
-            AGI Mode
-          </ModeButton>
-          <ModeButton active={aiMode === 'asi'} onClick={() => switchMode('asi')}>
-            ASI Mode
-          </ModeButton>
-        </ModeSelector>
+      <Container ref={container} className={currentMode}>
+        <Tooltip>
+          {loading 
+            ? "Loading FoxMandal legal consultation interface..." 
+            : "Click hotspots to explore services or start a conversation with Adv. Arjun"
+          }
+        </Tooltip>
 
-        <StatusDisplay mode={aiMode}>
-          <div className="mode-info">{getStatusText()}</div>
-          <div className="status-text">
-            {loading ? "Initializing..." : "Click AI core to interact"}
-          </div>
-        </StatusDisplay>
+        <InteractionButton 
+          listening={listening}
+          onClick={() => listening ? stop() : handleGreetAndListen()}
+        >
+          {listening ? 'Stop Listening' : 'Talk to Adv. Arjun'}
+        </InteractionButton>
 
-        <AICore
-          size={getAISize()}
-          mode={aiMode}
-          isSpeaking={isSpeaking}
-          onClick={handleAIClick}
-        />
+        {aiText && (
+          <ChatBubble>
+            <p>{aiText}</p>
+            <button className="close-btn" onClick={() => setAiText('')}>×</button>
+          </ChatBubble>
+        )}
 
-        {showResponse && (
-          <ResponseBubble mode={aiMode} isSpeaking={isSpeaking}>
-            <p className="response-text">{aiText}</p>
-            <button 
-              className="close-btn" 
-              onClick={() => {
-                setShowResponse(false);
-                stopTTS();
-                setIsSpeaking(false);
-              }}
+        {hotspotInfo && (
+          <HotspotInfo>
+            {hotspotInfo}
+          </HotspotInfo>
+        )}
+
+        {showContactForm && (
+          <ContactForm>
+            <h3>Schedule Legal Consultation</h3>
+            <input 
+              placeholder="Your full name" 
+              value={formData.name} 
+              onChange={e => setFormData({...formData, name: e.target.value})}
+            />
+            <input 
+              placeholder="Email address" 
+              type="email" 
+              value={formData.email} 
+              onChange={e => setFormData({...formData, email: e.target.value})}
+            />
+            <input 
+              placeholder="Phone number" 
+              type="tel" 
+              value={formData.phone} 
+              onChange={e => setFormData({...formData, phone: e.target.value})}
+            />
+            <select 
+              value={formData.legalArea} 
+              onChange={e => setFormData({...formData, legalArea: e.target.value})}
             >
-              ×
-            </button>
-          </ResponseBubble>
+              <option value="corporate_law">Corporate Law</option>
+              <option value="litigation">Litigation & Disputes</option>
+              <option value="intellectual_property">Intellectual Property</option>
+              <option value="employment_law">Employment Law</option>
+              <option value="real_estate">Real Estate</option>
+              <option value="tax_law">Tax Law</option>
+              <option value="contracts">Contract Law</option>
+              <option value="consultation_request">General Legal Advice</option>
+            </select>
+            <select 
+              value={formData.urgency} 
+              onChange={e => setFormData({...formData, urgency: e.target.value})}
+            >
+              <option value="low">General inquiry</option>
+              <option value="medium">Within a week</option>
+              <option value="high">Urgent matter (ASAP)</option>
+            </select>
+            <textarea 
+              placeholder="Briefly describe your legal matter or questions..." 
+              value={formData.message} 
+              onChange={e => setFormData({...formData, message: e.target.value})}
+            />
+            <div className="buttons">
+              <button className="btn submit" onClick={handleFormSubmit}>
+                Request Consultation
+              </button>
+              <button className="btn cancel" onClick={() => setShowContactForm(false)}>
+                Cancel
+              </button>
+            </div>
+          </ContactForm>
         )}
       </Container>
     </>
