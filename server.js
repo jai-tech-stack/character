@@ -68,16 +68,16 @@ const createRateLimit = rateLimit({
 });
 
 app.use(createRateLimit);
-
-// Enhanced CORS with security
+// In your server.js, update the CORS configuration:
 app.use(cors({
   origin: [
     "http://localhost:5173",
     "http://localhost:3001", 
     "https://foxmandal.in",
     "https://www.foxmandal.in",
-    "https://character-kappa.vercel.app",
-    "https://character-kappa.vercel.app/",
+    "https://character-kappa.vercel.app",     // ✅ This should already be there
+    "https://character-kappa.vercel.app/",   // ✅ Add trailing slash version
+    "https://*.vercel.app",                  // ✅ Add wildcard for all Vercel apps
     "https://legal-ai.vercel.app"
   ],
   methods: ["GET", "POST", "OPTIONS"],
@@ -85,7 +85,7 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization", "X-Session-ID", "X-Client-Version"],
   optionsSuccessStatus: 200
 }));
-
+ 
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(fileUpload({
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
