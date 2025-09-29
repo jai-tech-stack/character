@@ -321,9 +321,9 @@ This analysis was performed autonomously using systematic legal research methodo
     }
   }
 
-  generateSessionId() {
-    return `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-  }
+generateSessionId(aiMode = 'standard') {
+    return `session_foxmandal_${aiMode}_${Date.now()}_${Math.random().toString(36).substring(2, 15).toLowerCase()}`;
+}
 
   getConversationContext(sessionId) {
     return this.conversationHistory.get(sessionId) || {};

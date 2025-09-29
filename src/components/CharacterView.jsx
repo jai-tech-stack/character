@@ -331,7 +331,7 @@ export default function CharacterView({ onMessage }) {
   const [aiState, setAiState] = useState('idle'); // idle, listening, processing, speaking
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`);
+  const [sessionId] = useState(() => `session_foxmandal_${aiMode}_${Date.now()}_${Math.random().toString(36).substring(2, 15).toLowerCase()}`);
   
   const { listen, listening, stop } = useSpeechRecognition({ 
     onResult: handleVoiceCommand 
