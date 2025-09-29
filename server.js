@@ -827,12 +827,12 @@ async function seedIndianLegalKnowledge() {
       });
     }
     
-    if (records.length > 0) {
-      await index.upsert({ records });
-      console.log(`Legal knowledge seeded: ${records.length} entries`);
+    if (records.length > 0)     if (records.length > 0) {
+      await index.upsert(records);
+      console.log(`✅ Seeded ${records.length} Indian legal knowledge records`);
     }
   } catch (error) {
-    console.error('Failed to seed legal knowledge:', error);
+    console.error('Knowledge seeding error:', error);
   }
 }
 
@@ -848,6 +848,23 @@ async function initializeLegalAI() {
 }
 
 initializeLegalAI().catch(console.error);
+// ===== INITIALIZATION =====
+(async () => {
+  try {
+    await initializePinecone();
+    // Optional: Seed once (comment after first run)
+    // await seedIndianLegalKnowledge();
+
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+      console.log(`🚀 Foxmandal Secure Legal AI running on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error('Startup error:', err);
+    process.exit(1);
+  }
+})();
+
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
