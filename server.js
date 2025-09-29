@@ -13,6 +13,9 @@ import { OpenAIEmbeddings } from '@langchain/openai';
 import { v4 as uuidv4 } from 'uuid';
 import fileUpload from 'express-fileupload';
 import crypto from 'crypto';
+import mammoth from 'mammoth';
+import pdf from 'pdf-parse';
+import fs from 'fs/promises';
 
 config();
 
@@ -358,6 +361,371 @@ const legalAnalytics = {
     return modeStats;
   }
 };
+// ===== DOCUMENT ANALYSIS ROUTE =====
+
+app.post('/analyze-document', validateRequest, async (req, res) => {
+  const startTime = Date.now();
+  const { sessionId, aiMode = 'standard', analysisType = 'comprehensive' } = req.body;
+  const clientIP = (req.ip || req.connection.remoteAddress || '').replace(/\.\d+$/, '.xxx');
+
+  // Validate file upload
+  if (!req.files || !req.files.document) {
+    return res.status(400).json({ error: 'No document uploaded' });
+  }
+
+  const uploadedFile = req.files.document;
+  const fileExtension = uploadedFile.name.split('.').pop().toLowerCase();
+
+  // Validate file type
+  const allowedTypes = ['pdf', 'doc', 'docx', 'txt'];
+  if (!allowedTypes.includes(fileExtension)) {
+    return res.status(400).json({ 
+      error: 'Invalid file type. Only PDF, DOC, DOCX, and TXT files are allowed.' 
+    });
+  }
+
+  // Validate file size (max 10MB)
+  if (uploadedFile.size > 10 * 1024 * 1024) {
+    return res.status(400).json({ 
+      error: 'File too large. Maximum size is 10MB.' 
+    });
+  }
+
+  console.log(`Document analysis request:`, {
+    fileName: uploadedFile.name,
+    fileSize: uploadedFile.size,
+    fileType: fileExtension,
+    aiMode,
+    sessionId
+  });
+
+  try {
+    // Extract text from document
+    let documentText = '';
+    let extractionMethod = '';
+
+    switch (fileExtension) {
+      case 'pdf':
+        const pdfData = await pdf(uploadedFile.data);
+        documentText = pdfData.text;
+        extractionMethod = 'PDF Parser';
+        break;
+
+      case 'docx':
+        const docxResult = await mammoth.extractRawText({ buffer: uploadedFile.data });
+        documentText = docxResult.value;
+        extractionMethod = 'DOCX Parser';
+        break;
+
+      case 'doc':
+        // For older .doc files, try mammoth (limited support)
+        try {
+          const docResult = await mammoth.extractRawText({ buffer: uploadedFile.data });
+          documentText = docResult.value;
+          extractionMethod = 'DOC Parser (Limited)';
+        } catch (docError) {
+          return res.status(400).json({ 
+            error: 'Unable to parse .doc file. Please convert to .docx format.' 
+          });
+        }
+        break;
+
+      case 'txt':
+        documentText = uploadedFile.data.toString('utf-8');
+        extractionMethod = 'Text Parser';
+        break;
+    }
+
+    // Validate extracted text
+    if (!documentText || documentText.trim().length < 50) {
+      return res.status(400).json({ 
+        error: 'Document appears to be empty or unreadable. Please check the file.' 
+      });
+    }
+
+    // Sanitize and truncate if needed
+    documentText = documentText.substring(0, 15000); // Limit to ~15k chars for API
+
+    // Classify document type
+    const documentType = classifyDocumentType(documentText);
+    const legalArea = classifyLegalIntent(documentText);
+
+    // Track analytics
+    legalAnalytics.trackLegalInteraction(sessionId, {
+      type: 'document_upload',
+      content: `${uploadedFile.name} (${fileExtension})`,
+      legalArea,
+      aiMode,
+      sessionId,
+      clientIP,
+      documentType,
+      documentSize: uploadedFile.size
+    });
+
+    // Generate AI analysis based on mode
+    const analysis = await generateDocumentAnalysis(
+      documentText,
+      documentType,
+      legalArea,
+      aiMode,
+      analysisType
+    );
+
+    // Track completion
+    legalAnalytics.trackLegalInteraction(sessionId, {
+      type: 'document_analysis_complete',
+      content: analysis.substring(0, 200),
+      legalArea,
+      aiMode,
+      sessionId,
+      clientIP,
+      responseTime: Date.now() - startTime,
+      confidence: analysis.confidence || 0.8
+    });
+
+    res.json({
+      success: true,
+      fileName: uploadedFile.name,
+      fileType: fileExtension,
+      extractionMethod,
+      documentType,
+      legalArea,
+      textLength: documentText.length,
+      analysis,
+      aiMode,
+      confidence: analysis.confidence || 0.8,
+      processingTime: Date.now() - startTime,
+      disclaimer: 'This is an AI-generated analysis. Please consult a qualified lawyer for legal advice.'
+    });
+
+  } catch (error) {
+    console.error('Document analysis error:', {
+      error: error.message,
+      fileName: uploadedFile.name,
+      sessionId,
+      ip: clientIP
+    });
+
+    legalAnalytics.trackLegalInteraction(sessionId, {
+      type: 'error',
+      content: `Document analysis failed: ${error.message}`,
+      sessionId,
+      clientIP,
+      securityFlag: 'document_processing_error'
+    });
+
+    res.status(500).json({ 
+      error: 'Failed to analyze document', 
+      details: 'Please ensure the document is readable and try again.',
+      code: 'ANALYSIS_ERROR'
+    });
+  }
+});
+
+// ===== DOCUMENT CLASSIFICATION =====
+
+function classifyDocumentType(text) {
+  const lowerText = text.toLowerCase();
+  
+  const documentPatterns = {
+    'employment_agreement': ['employment agreement', 'employment contract', 'offer letter', 'appointment letter'],
+    'nda': ['non-disclosure', 'confidentiality agreement', 'nda', 'confidential information'],
+    'service_agreement': ['service agreement', 'consulting agreement', 'professional services'],
+    'mou': ['memorandum of understanding', 'mou', 'letter of intent'],
+    'lease_agreement': ['lease agreement', 'rental agreement', 'tenancy agreement'],
+    'partnership_deed': ['partnership deed', 'partnership agreement', 'business partnership'],
+    'sale_deed': ['sale deed', 'purchase agreement', 'conveyance deed'],
+    'power_of_attorney': ['power of attorney', 'poa', 'attorney-in-fact'],
+    'legal_notice': ['legal notice', 'notice under', 'demand notice'],
+    'court_document': ['in the court', 'plaintiff', 'defendant', 'petition', 'affidavit'],
+    'business_contract': ['contract', 'agreement', 'terms and conditions', 'parties agree']
+  };
+
+  for (const [type, keywords] of Object.entries(documentPatterns)) {
+    if (keywords.some(keyword => lowerText.includes(keyword))) {
+      return type;
+    }
+  }
+
+  return 'general_document';
+}
+
+// ===== AI-POWERED DOCUMENT ANALYSIS =====
+
+async function generateDocumentAnalysis(documentText, documentType, legalArea, aiMode, analysisType) {
+  const documentSummary = documentText.length > 2000 
+    ? documentText.substring(0, 2000) + '...[truncated]'
+    : documentText;
+
+  // Build mode-specific analysis prompt
+  let systemPrompt = '';
+  let analysisRequest = '';
+
+  switch (aiMode) {
+    case 'asi':
+      systemPrompt = `You are an ASI (Artificial Superintelligence) legal document analyzer. Provide:
+
+ASI DOCUMENT ANALYSIS:
+
+RISK ASSESSMENT:
+High Risk Clauses: [list with probability of dispute %]
+Medium Risk Clauses: [list with probability %]
+Low Risk Clauses: [list with probability %]
+
+PREDICTIVE ANALYSIS:
+- Likelihood of Future Disputes: [X%]
+- Compliance Risk Score: [Y%]
+- Enforceability Rating: [Z%]
+
+SCENARIO MODELING:
+Scenario 1 (Favorable): [outcome] - Probability: X%
+Scenario 2 (Most Likely): [outcome] - Probability: Y%
+Scenario 3 (Adverse): [outcome] - Probability: Z%
+
+STRATEGIC RECOMMENDATIONS:
+[Prioritized action items with success probabilities]
+
+HIDDEN PATTERNS DETECTED:
+[Non-obvious risks or opportunities identified through superintelligence analysis]`;
+
+      analysisRequest = `Perform ASI-level predictive analysis on this ${documentType}:\n\n${documentSummary}`;
+      break;
+
+    case 'agi':
+      systemPrompt = `You are an AGI cross-domain legal document analyzer. Provide:
+
+AGI MULTI-DOMAIN ANALYSIS:
+
+LEGAL DOMAIN:
+- Compliance with Indian laws
+- Legal enforceability
+- Jurisdiction issues
+- Key legal risks
+
+BUSINESS DOMAIN:
+- Commercial implications
+- Financial risks/opportunities
+- Market positioning impact
+- Negotiation leverage points
+
+OPERATIONAL DOMAIN:
+- Implementation requirements
+- Timeline considerations
+- Resource needs
+- Process impacts
+
+RISK MANAGEMENT DOMAIN:
+- Risk matrix (legal, financial, operational)
+- Mitigation strategies
+- Insurance considerations
+
+INTEGRATED CROSS-DOMAIN RECOMMENDATIONS:
+[How all domains interconnect and strategic approach]`;
+
+      analysisRequest = `Perform AGI cross-domain analysis on this ${documentType}:\n\n${documentSummary}`;
+      break;
+
+    case 'agentic':
+      systemPrompt = `You are an autonomous legal document analysis agent. Provide:
+
+AUTONOMOUS ANALYSIS:
+
+STEP 1 - DOCUMENT STRUCTURE ANALYSIS:
+[What I independently identified in document structure]
+
+STEP 2 - CLAUSE-BY-CLAUSE REVIEW:
+[Key clauses I autonomously reviewed]
+
+STEP 3 - RISK IDENTIFICATION:
+[Risks I independently discovered]
+
+STEP 4 - COMPARATIVE RESEARCH:
+[Market standards I researched autonomously]
+
+STEP 5 - STRATEGIC RECOMMENDATIONS:
+[Actions I recommend based on autonomous analysis]
+
+AUTONOMOUS RESEARCH PERFORMED:
+[What additional research I would perform independently]`;
+
+      analysisRequest = `Perform autonomous step-by-step analysis on this ${documentType}:\n\n${documentSummary}`;
+      break;
+
+    default: // standard
+      systemPrompt = `You are a legal document analyst at FoxMandal. Provide:
+
+DOCUMENT ANALYSIS:
+
+Document Type: [Classification]
+
+Key Clauses Identified:
+• [List important clauses]
+
+Potential Issues:
+• [List concerns or red flags]
+
+Compliance Check:
+• [Indian law compliance assessment]
+
+Recommendations:
+• [Practical advice for client]
+
+Next Steps:
+• [What client should do]`;
+
+      analysisRequest = `Analyze this ${documentType} document:\n\n${documentSummary}`;
+      break;
+  }
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: analysisRequest }
+      ],
+      temperature: aiMode === 'asi' ? 0.2 : aiMode === 'agi' ? 0.3 : 0.4,
+      max_tokens: aiMode === 'asi' ? 800 : aiMode === 'agi' ? 700 : 600
+    });
+
+    const analysis = response.choices[0].message.content;
+    
+    // Calculate confidence based on mode and content
+    const confidence = calculateDocumentConfidence(analysis, aiMode, documentText.length);
+
+    return {
+      content: analysis,
+      confidence,
+      documentType,
+      legalArea,
+      aiMode
+    };
+
+  } catch (error) {
+    console.error('Document analysis AI error:', error);
+    throw new Error('AI analysis failed');
+  }
+}
+
+function calculateDocumentConfidence(analysis, aiMode, documentLength) {
+  let confidence = {
+    'asi': 0.88,
+    'agi': 0.85,
+    'agentic': 0.82,
+    'standard': 0.78
+  }[aiMode] || 0.75;
+
+  // Adjust based on analysis quality
+  if (analysis.includes('risk') || analysis.includes('probability')) confidence += 0.03;
+  if (analysis.includes('recommendation') || analysis.includes('next steps')) confidence += 0.02;
+  if (analysis.length > 800) confidence += 0.02;
+  if (documentLength < 500) confidence -= 0.05; // Short docs harder to analyze
+  
+  return Math.max(0.65, Math.min(0.95, confidence));
+}
+
+// Export for use in other modules if needed
+export { classifyDocumentType, generateDocumentAnalysis };
 
 // ===== LEGAL INTENT CLASSIFICATION =====
 
