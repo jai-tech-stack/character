@@ -1,10 +1,10 @@
-// Simplified Chat Assistant - ChatAssistant.jsx
-// Single "Smart AI" mode - no confusing options for clients
+// Simplified Chat Assistant with Re-engagement & Context - ChatAssistant.jsx
+// Single "Smart AI" mode + Inactivity Detection + Natural Conversation
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import styled, { keyframes } from "styled-components";
 import { useSpeechRecognition } from "react-speech-kit";
-import { sendMessage, getTTS, stopTTS, captureLead } from "../api/chatApi";
+import { sendMessage, getTTS, stopTTS, captureLead, generateAIIntroduction, checkUserReEngagement } from "../api/chatApi";
 import { v4 as uuidv4 } from "uuid";
 
 const pulse = keyframes`
@@ -25,6 +25,11 @@ const fadeIn = keyframes`
 const processingPulse = keyframes`
   0%, 100% { opacity: 0.3; }
   50% { opacity: 1; }
+`;
+
+const glowPulse = keyframes`
+  0%, 100% { box-shadow: 0 0 20px rgba(102, 126, 234, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(102, 126, 234, 0.7); }
 `;
 
 const ChatBtn = styled.button`
@@ -48,7 +53,9 @@ const ChatBtn = styled.button`
   backdrop-filter: blur(10px);
   transition: all 0.3s ease;
   animation: ${props => 
-    props.listening || props.processing ? pulse : 'none'
+    props.listening || props.processing ? pulse : 
+    props.hasNewMessage ? glowPulse :
+    'none'
   } 1.5s infinite;
   
   @media (max-width: 768px) {

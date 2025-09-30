@@ -1,25 +1,105 @@
-// OPTIMIZED Fast AI Mode System - chatApi.js
-// Single API calls per mode for speed
+// OPTIMIZED Fast AI Mode System with Context Persistence - chatApi.js
+// Single API calls per mode for speed + Conversation Memory
 
 const API_BASE_URL = 'https://character-chan.onrender.com';
 
-console.log('Loading OPTIMIZED AI Mode System for FoxMandal...');
+console.log('Loading OPTIMIZED AI Mode System with Context Memory for FoxMandal...');
 
 class OptimizedAIProcessor {
   constructor() {
     this.conversationHistory = new Map();
+    this.userPreferences = new Map();
+    this.lastInteractionTime = new Map();
   }
 
-  // AGENTIC AI - Single optimized call with comprehensive analysis
-  async processAgentic(message, sessionId) {
+  // Track user preferences and context
+  updateUserProfile(sessionId, data) {
+    const profile = this.userPreferences.get(sessionId) || {
+      name: null,
+      legalInterests: [],
+      interactionCount: 0,
+      firstInteraction: Date.now(),
+      preferredTopics: new Set()
+    };
+
+    if (data.legalArea) profile.preferredTopics.add(data.legalArea);
+    if (data.name) profile.name = data.name;
+    profile.interactionCount++;
+
+    this.userPreferences.set(sessionId, profile);
+    return profile;
+  }
+
+  // Check if user returned after inactivity
+  checkReEngagement(sessionId) {
+    const lastTime = this.lastInteractionTime.get(sessionId);
+    const now = Date.now();
+    const inactiveMinutes = lastTime ? (now - lastTime) / 60000 : 0;
+
+    this.lastInteractionTime.set(sessionId, now);
+
+    if (inactiveMinutes >= 2 && inactiveMinutes <= 30) {
+      return {
+        shouldGreet: true,
+        inactiveMinutes: Math.floor(inactiveMinutes),
+        greeting: this.generateReEngagementGreeting(sessionId, inactiveMinutes)
+      };
+    }
+
+    return { shouldGreet: false };
+  }
+
+  generateReEngagementGreeting(sessionId, minutes) {
+    const profile = this.userPreferences.get(sessionId);
+    const history = this.getConversationContext(sessionId);
+    
+    let greeting = `Welcome back! `;
+
+    if (profile?.name) {
+      greeting = `Welcome back, ${profile.name}! `;
+    }
+
+    if (history.lastTopic) {
+      greeting += `I see we were discussing ${history.lastTopic}. Would you like to continue, or is there something new I can help you with?`;
+    } else if (minutes < 5) {
+      greeting += `I'm here to help with any legal questions you have.`;
+    } else {
+      greeting += `It's been ${minutes} minutes. How can I assist you with your legal matters today?`;
+    }
+
+    return greeting;
+  }
+
+  // AGENTIC AI - Single optimized call with context awareness
+  async processAgentic(message, sessionId, contextData = {}) {
+    const profile = this.updateUserProfile(sessionId, contextData);
+    const conversationContext = this.getConversationContext(sessionId);
+    
+    // Build context-aware prompt
+    let contextPrompt = '';
+    
+    if (conversationContext.history?.length > 0) {
+      const recentHistory = conversationContext.history.slice(-2).map(h => 
+        `User: ${h.message}\nAdvocate: ${h.response.substring(0, 150)}`
+      ).join('\n');
+      
+      contextPrompt = `\n\nPREVIOUS CONVERSATION CONTEXT:\n${recentHistory}\n\nCurrent question relates to previous discussion.`;
+    }
+
+    if (profile.preferredTopics.size > 0) {
+      contextPrompt += `\n\nUser has shown interest in: ${Array.from(profile.preferredTopics).join(', ')}`;
+    }
+
     return await this.sendToBackend({
-      message,
+      message: message + contextPrompt,
       sessionId,
       aiMode: 'agentic',
-      systemPrompt: `You are Advocate Arjun, an advanced legal AI assistant at FoxMandal. Provide detailed step-by-step legal analysis:
+      systemPrompt: `You are Advocate Arjun, an advanced legal AI assistant at FoxMandal. ${profile.name ? `The user's name is ${profile.name}.` : ''} This is interaction #${profile.interactionCount}.
+
+Provide detailed step-by-step legal analysis with natural conversation flow:
 
 STEP 1 - LEGAL ANALYSIS:
-Identify the core legal issues and applicable Indian laws.
+Identify core legal issues and applicable Indian laws.
 
 STEP 2 - KEY CONSIDERATIONS:
 List critical factors, risks, and compliance requirements.
@@ -30,9 +110,36 @@ Provide clear, actionable next steps.
 STEP 4 - CONSULTATION ADVICE:
 Specify when professional legal consultation is necessary.
 
-Keep response focused, practical, and under 400 words.`,
+CONVERSATION GUIDELINES:
+- Reference previous topics naturally if relevant
+- Show empathy and emotional intelligence
+- Ask clarifying questions when needed
+- Handle topic changes gracefully
+- Keep responses focused, practical, under 400 words`,
       temperature: 0.4,
       maxTokens: 500
+    });
+  }
+
+  // Self-introduction with personalization
+  async generateIntroduction(sessionId, isReturning = false) {
+    const profile = this.userPreferences.get(sessionId);
+    
+    if (isReturning && profile) {
+      return `Welcome back${profile.name ? `, ${profile.name}` : ''}! I remember we've discussed ${Array.from(profile.preferredTopics).join(' and ')} before. I'm Advocate Arjun, your AI legal assistant from FoxMandal. I'm here to help you with any legal questions. What's on your mind today?`;
+    }
+
+    return await this.sendToBackend({
+      message: "Introduce yourself warmly as Advocate Arjun, an intelligent legal AI assistant. Be personable, professional, and encourage questions.",
+      sessionId,
+      aiMode: 'agentic',
+      systemPrompt: `You are Advocate Arjun from FoxMandal. Introduce yourself naturally:
+- Warm, professional greeting
+- Explain your capabilities (contract review, legal advice, consultation scheduling)
+- Invite user to ask anything
+- Keep it conversational, under 100 words`,
+      temperature: 0.7,
+      maxTokens: 150
     });
   }
 
@@ -55,8 +162,6 @@ Keep response focused, practical, and under 400 words.`,
       if (requestBody.message.length > 2000) {
         requestBody.message = requestBody.message.substring(0, 2000);
       }
-
-      console.log(`Sending optimized ${params.aiMode} request...`);
 
       const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
@@ -83,7 +188,7 @@ Keep response focused, practical, and under 400 words.`,
 
     } catch (error) {
       console.error('Backend API Error:', error);
-      return `I apologize, but I'm experiencing technical difficulties. Please try again in a moment.`;
+      return `I apologize for the technical difficulty. Please try rephrasing your question, and I'll do my best to assist you.`;
     }
   }
 
@@ -91,23 +196,56 @@ Keep response focused, practical, and under 400 words.`,
     return `session_foxmandal_${aiMode}_${Date.now()}_${Math.random().toString(36).substring(2, 15).toLowerCase()}`;
   }
 
-  updateConversationContext(sessionId, message, response, mode) {
-    const context = this.conversationHistory.get(sessionId) || { history: [] };
-    context.history.push({ message, response, mode, timestamp: Date.now() });
+  getConversationContext(sessionId) {
+    return this.conversationHistory.get(sessionId) || { history: [], lastTopic: null };
+  }
+
+  updateConversationContext(sessionId, message, response, topic = null) {
+    const context = this.getConversationContext(sessionId);
+    context.history = context.history || [];
+    context.history.push({ 
+      message, 
+      response, 
+      timestamp: Date.now(),
+      topic 
+    });
     
-    if (context.history.length > 3) {
-      context.history = context.history.slice(-3);
+    if (topic) context.lastTopic = topic;
+    
+    // Keep last 5 interactions for context
+    if (context.history.length > 5) {
+      context.history = context.history.slice(-5);
     }
     
     this.conversationHistory.set(sessionId, context);
+  }
+
+  // Extract topic from message for context
+  extractTopic(message) {
+    const topicKeywords = {
+      'contract': ['contract', 'agreement', 'terms'],
+      'employment': ['employment', 'job', 'workplace', 'termination'],
+      'property': ['property', 'real estate', 'land', 'lease'],
+      'taxation': ['tax', 'gst', 'income tax'],
+      'corporate': ['company', 'business', 'corporate'],
+      'litigation': ['court', 'lawsuit', 'legal action']
+    };
+
+    const lowerMessage = message.toLowerCase();
+    for (const [topic, keywords] of Object.entries(topicKeywords)) {
+      if (keywords.some(kw => lowerMessage.includes(kw))) {
+        return topic;
+      }
+    }
+    return 'general legal';
   }
 }
 
 const aiProcessor = new OptimizedAIProcessor();
 
-// ===== MAIN API FUNCTION =====
+// ===== MAIN API FUNCTION WITH CONTEXT =====
 
-export const sendMessage = async (message, sessionId = null, aiMode = 'agentic') => {
+export const sendMessage = async (message, sessionId = null, aiMode = 'agentic', contextData = {}) => {
   if (!message || typeof message !== 'string') {
     throw new Error('Message is required and must be a string');
   }
@@ -120,31 +258,48 @@ export const sendMessage = async (message, sessionId = null, aiMode = 'agentic')
   const session = sessionId || aiProcessor.generateSessionId(aiMode);
 
   try {
-    console.log(`Processing optimized request: "${sanitizedMessage.substring(0, 50)}..."`);
+    // Check for re-engagement
+    const reEngagement = aiProcessor.checkReEngagement(session);
     
-    const response = await aiProcessor.processAgentic(sanitizedMessage, session);
-
-    aiProcessor.updateConversationContext(session, sanitizedMessage, response, aiMode);
+    const response = await aiProcessor.processAgentic(sanitizedMessage, session, contextData);
+    
+    const topic = aiProcessor.extractTopic(sanitizedMessage);
+    aiProcessor.updateConversationContext(session, sanitizedMessage, response, topic);
 
     return {
       reply: response,
       aiMode: 'agentic',
       sessionId: session,
       processingType: 'optimized_agentic',
-      confidence: calculateConfidence(response)
+      confidence: calculateConfidence(response),
+      reEngagement: reEngagement.shouldGreet ? reEngagement : null,
+      contextRetained: true
     };
 
   } catch (error) {
     console.error('AI processing error:', error);
     
     return {
-      reply: `I apologize, but I'm experiencing technical difficulties processing your legal query. Please try rephrasing your question or contact our support team.`,
+      reply: `I apologize for the technical difficulty. Let me try to help you anyway - could you rephrase your legal question?`,
       aiMode: 'agentic',
       sessionId: session,
       processingType: 'error',
       confidence: 0.3
     };
   }
+};
+
+// Generate introduction with context awareness
+export const generateAIIntroduction = async (sessionId) => {
+  const profile = aiProcessor.userPreferences.get(sessionId);
+  const isReturning = profile && profile.interactionCount > 0;
+  
+  return await aiProcessor.generateIntroduction(sessionId, isReturning);
+};
+
+// Check if user needs re-engagement greeting
+export const checkUserReEngagement = (sessionId) => {
+  return aiProcessor.checkReEngagement(sessionId);
 };
 
 function calculateConfidence(response) {
