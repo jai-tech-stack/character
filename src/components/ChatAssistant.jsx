@@ -1,4 +1,6 @@
-// Real AI Chat Assistant - ChatAssistant.jsx
+// Simplified Chat Assistant - ChatAssistant.jsx
+// Single "Smart AI" mode - no confusing options for clients
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import styled, { keyframes } from "styled-components";
 import { useSpeechRecognition } from "react-speech-kit";
@@ -25,11 +27,6 @@ const processingPulse = keyframes`
   50% { opacity: 1; }
 `;
 
-const agenticGlow = keyframes`
-  0%, 100% { box-shadow: 0 0 20px rgba(184, 115, 51, 0.3); }
-  50% { box-shadow: 0 0 40px rgba(184, 115, 51, 0.8); }
-`;
-
 const ChatBtn = styled.button`
   position: fixed;
   bottom: 2rem;
@@ -37,9 +34,6 @@ const ChatBtn = styled.button`
   background: ${props => 
     props.listening ? 'linear-gradient(45deg, #b87333, #92400e)' :
     props.processing ? 'linear-gradient(45deg, #fbbf24, #f59e0b)' :
-    props.mode === 'asi' ? 'linear-gradient(45deg, #2d2d7c, #4a4af5)' :
-    props.mode === 'agi' ? 'linear-gradient(45deg, #0f3460, #1976d2)' :
-    props.mode === 'agentic' ? 'linear-gradient(45deg, #b87333, #f57c00)' :
     'linear-gradient(45deg, #1e40af, #1e3a8a)'
   };
   border: none;
@@ -54,10 +48,7 @@ const ChatBtn = styled.button`
   backdrop-filter: blur(10px);
   transition: all 0.3s ease;
   animation: ${props => 
-    props.listening ? pulse : 
-    props.processing ? processingPulse :
-    props.mode === 'agentic' ? agenticGlow : 
-    'none'
+    props.listening || props.processing ? pulse : 'none'
   } 1.5s infinite;
   
   @media (max-width: 768px) {
@@ -86,12 +77,7 @@ const ChatBox = styled.div`
   max-height: 600px;
   border-radius: 20px;
   box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-  border: 1px solid ${props => 
-    props.mode === 'asi' ? 'rgba(125, 125, 255, 0.5)' :
-    props.mode === 'agi' ? 'rgba(25, 118, 210, 0.5)' :
-    props.mode === 'agentic' ? 'rgba(184, 115, 51, 0.5)' :
-    'rgba(30, 64, 175, 0.2)'
-  };
+  border: 1px solid rgba(30, 64, 175, 0.2);
   z-index: 999;
   animation: ${slideIn} 0.4s ease-out;
   overflow: hidden;
@@ -106,12 +92,7 @@ const ChatBox = styled.div`
 `;
 
 const ChatHeader = styled.div`
-  background: ${props => 
-    props.mode === 'asi' ? 'linear-gradient(135deg, #2d2d7c 0%, #4a4af5 100%)' :
-    props.mode === 'agi' ? 'linear-gradient(135deg, #0f3460 0%, #1976d2 100%)' :
-    props.mode === 'agentic' ? 'linear-gradient(135deg, #b87333 0%, #f57c00 100%)' :
-    'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)'
-  };
+  background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
   color: white;
   padding: 1rem 1.5rem;
   display: flex;
@@ -124,7 +105,7 @@ const ChatHeader = styled.div`
     font-weight: 600;
   }
   
-  .ai-mode-indicator {
+  .status-info {
     font-size: 0.8rem;
     opacity: 0.9;
     display: flex;
@@ -190,34 +171,6 @@ const Message = styled.div`
     color: ${props => props.isUser ? '#1e40af' : '#b87333'};
   }
   
-  .ai-mode-badge {
-    font-size: 0.7rem;
-    padding: 0.2rem 0.5rem;
-    border-radius: 10px;
-    background: ${props => 
-      props.mode === 'asi' ? 'rgba(125, 125, 255, 0.2)' :
-      props.mode === 'agi' ? 'rgba(25, 118, 210, 0.2)' :
-      props.mode === 'agentic' ? 'rgba(184, 115, 51, 0.2)' :
-      'transparent'
-    };
-    color: ${props => 
-      props.mode === 'asi' ? '#2d2d7c' :
-      props.mode === 'agi' ? '#0f3460' :
-      props.mode === 'agentic' ? '#b87333' :
-      'transparent'
-    };
-    font-weight: 600;
-  }
-  
-  .processing-type {
-    font-size: 0.65rem;
-    background: rgba(251, 191, 36, 0.2);
-    color: #92400e;
-    padding: 0.1rem 0.4rem;
-    border-radius: 8px;
-    font-weight: 600;
-  }
-  
   .timestamp {
     font-size: 0.7rem;
     color: #999;
@@ -226,9 +179,6 @@ const Message = styled.div`
   .content {
     background: ${props => props.isUser ? 
       'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)' : 
-      props.mode === 'asi' ? 'linear-gradient(135deg, #e8eaff 0%, #d4d8ff 100%)' :
-      props.mode === 'agi' ? 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)' :
-      props.mode === 'agentic' ? 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)' :
       'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)'
     };
     padding: 0.8rem 1rem;
@@ -250,70 +200,8 @@ const Message = styled.div`
       height: 0;
       border: 8px solid transparent;
       border-${props => props.isUser ? 'left' : 'right'}-color: ${props => 
-        props.isUser ? '#bfdbfe' :
-        props.mode === 'asi' ? '#d4d8ff' :
-        props.mode === 'agi' ? '#bbdefb' :
-        props.mode === 'agentic' ? '#ffe0b2' :
-        '#fde68a'
+        props.isUser ? '#bfdbfe' : '#fde68a'
       };
-    }
-  }
-  
-  .confidence-indicator {
-    font-size: 0.7rem;
-    color: #666;
-    margin-top: 0.3rem;
-    font-style: italic;
-  }
-`;
-
-const ModeSelector = styled.div`
-  padding: 1rem;
-  border-top: 1px solid rgba(0,0,0,0.1);
-  background: rgba(0,0,0,0.02);
-  
-  .mode-title {
-    font-size: 0.9rem;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-    color: #374151;
-  }
-  
-  .mode-buttons {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-  
-  .mode-btn {
-    background: ${props => 
-      props.activeMode === props.currentBtn ? 
-        props.currentBtn === 'asi' ? 'linear-gradient(45deg, #2d2d7c, #4a4af5)' :
-        props.currentBtn === 'agi' ? 'linear-gradient(45deg, #0f3460, #1976d2)' :
-        props.currentBtn === 'agentic' ? 'linear-gradient(45deg, #b87333, #f57c00)' :
-        'linear-gradient(45deg, #1e40af, #1e3a8a)' :
-      'rgba(0,0,0,0.1)'
-    };
-    color: ${props => 
-      (props.activeMode === props.currentBtn) ? 'white' : '#666'
-    };
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 15px;
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    flex: 1;
-    min-width: 80px;
-    
-    &:hover:not(:disabled) {
-      transform: translateY(-1px);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    }
-    
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
     }
   }
 `;
@@ -405,6 +293,7 @@ const LeadCaptureForm = styled.div`
     cursor: pointer;
     font-size: 0.9rem;
     margin-top: 0.5rem;
+    width: 100%;
     
     &:hover {
       transform: translateY(-1px);
@@ -418,13 +307,48 @@ const LeadCaptureForm = styled.div`
   }
 `;
 
+const QuickActions = styled.div`
+  padding: 1rem;
+  border-top: 1px solid rgba(0,0,0,0.1);
+  background: rgba(248, 250, 252, 0.5);
+  
+  .quick-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #374151;
+  }
+  
+  .quick-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .quick-btn {
+    background: white;
+    border: 1px solid #d1d5db;
+    color: #374151;
+    padding: 0.4rem 0.8rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    
+    &:hover {
+      background: #f3f4f6;
+      border-color: #1e40af;
+      color: #1e40af;
+    }
+  }
+`;
+
 export default function ChatAssistant() {
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState([]);
-  const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`);
+  const [sessionId] = useState(() => `session_foxmandal_agentic_${Date.now()}_${Math.random().toString(36).substring(2, 15).toLowerCase()}`);
   const [isTyping, setIsTyping] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [aiMode, setAIMode] = useState('standard');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showLeadCapture, setShowLeadCapture] = useState(false);
   const [leadData, setLeadData] = useState({
@@ -450,16 +374,15 @@ export default function ChatAssistant() {
   const speakResponse = useCallback(async (text) => {
     setIsSpeaking(true);
     try {
-      const processedText = text.replace(/Adv\./g, 'Advocate').replace(/Foxmandal/g, 'Foxmandal');
-      await getTTS(processedText, aiMode);
+      const processedText = text.replace(/Adv\./g, 'Advocate');
+      await getTTS(processedText);
     } catch (err) {
       console.error("TTS error:", err);
     } finally {
       setIsSpeaking(false);
     }
-  }, [aiMode]);
+  }, []);
 
-  // Real AI processing with genuine mode differences
   async function handleUser(text, isQuickAction = false) {
     if (!text?.trim()) return;
     
@@ -478,10 +401,9 @@ export default function ChatAssistant() {
     setIsProcessing(true);
 
     try {
-      console.log(`Processing message with real ${aiMode} AI...`);
+      console.log('Processing with Smart AI...');
       
-      // Use the real AI processor from chatApi
-      const response = await sendMessage(text, sessionId, aiMode);
+      const response = await sendMessage(text, sessionId, 'agentic');
       
       setIsTyping(false);
       setIsProcessing(false);
@@ -490,15 +412,12 @@ export default function ChatAssistant() {
         from: 'Advocate Arjun', 
         text: response.reply, 
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        id: uuidv4(),
-        mode: aiMode,
-        processingType: response.processingType,
-        confidence: response.confidence
+        id: uuidv4()
       };
       
       setMsgs(prev => [...prev, aiMessage]);
 
-      // Check if this looks like a consultation request
+      // Auto-trigger lead capture for consultation queries
       if (response.reply.toLowerCase().includes('consultation') || 
           text.toLowerCase().includes('lawyer') ||
           text.toLowerCase().includes('legal advice')) {
@@ -509,16 +428,15 @@ export default function ChatAssistant() {
       await speakResponse(response.reply);
 
     } catch (err) {
-      console.error(`Real ${aiMode} AI error:`, err);
+      console.error('AI error:', err);
       setIsTyping(false);
       setIsProcessing(false);
-      const errorMsg = `I encountered an issue with ${aiMode} processing. Please try again.`;
+      const errorMsg = `I encountered an issue processing your request. Please try again.`;
       setMsgs(prev => [...prev, { 
         from: 'Advocate Arjun', 
         text: errorMsg, 
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        id: uuidv4(),
-        mode: aiMode
+        id: uuidv4()
       }]);
       await speakResponse(errorMsg);
     }
@@ -529,34 +447,14 @@ export default function ChatAssistant() {
       setOpen(true);
       if (msgs.length === 0) {
         setTimeout(async () => {
-          try {
-            // Get real AI mode introduction
-            const response = await sendMessage(
-              `Introduce yourself as Advocate Arjun in ${aiMode} mode and explain your unique capabilities`,
-              sessionId,
-              aiMode
-            );
-            
-            setMsgs([{
-              from: 'Advocate Arjun',
-              text: response.reply,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              id: uuidv4(),
-              mode: aiMode,
-              processingType: response.processingType
-            }]);
-            speakResponse(response.reply);
-          } catch (error) {
-            const fallbackMsg = getModeWelcomeMessage();
-            setMsgs([{
-              from: 'Advocate Arjun',
-              text: fallbackMsg,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              id: uuidv4(),
-              mode: aiMode
-            }]);
-            speakResponse(fallbackMsg);
-          }
+          const welcomeMsg = "Hello! I'm Advocate Arjun from FoxMandal. I can help you with any legal questions. How can I assist you today?";
+          setMsgs([{
+            from: 'Advocate Arjun',
+            text: welcomeMsg,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            id: uuidv4()
+          }]);
+          speakResponse(welcomeMsg);
         }, 500);
       }
     }
@@ -570,63 +468,22 @@ export default function ChatAssistant() {
     }
   }
 
-  function getModeWelcomeMessage() {
-    const messages = {
-      standard: "Hello! I'm Advocate Arjun from FoxMandal. How can I assist with your legal matters today?",
-      agentic: "Agentic AI mode activated. I can autonomously research and analyze complex legal matters step-by-step.",
-      agi: "AGI mode engaged. I'll analyze your legal queries across multiple domains for comprehensive insights.",
-      asi: "ASI mode active. Advanced probabilistic analysis and strategic projections are now available."
+  async function handleQuickAction(action) {
+    const quickQueries = {
+      'contract': 'I need help reviewing a contract',
+      'employment': 'I have questions about employment law',
+      'property': 'I need legal advice about property matters',
+      'consultation': 'I would like to schedule a legal consultation'
     };
-    return messages[aiMode] || messages.standard;
-  }
-
-  async function switchMode(mode) {
-    if (isProcessing) return; // Prevent mode switching during processing
     
-    setAIMode(mode);
-    
-    try {
-      // Get real AI explanation of the new mode
-      const response = await sendMessage(
-        `You are now switching to ${mode} mode. Explain how this changes your processing approach and capabilities as Advocate Arjun.`,
-        sessionId,
-        mode
-      );
-      
-      setMsgs(prev => [...prev, {
-        from: 'System',
-        text: `Switched to ${mode.toUpperCase()} mode.`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        id: uuidv4(),
-        mode: mode
-      }, {
-        from: 'Advocate Arjun',
-        text: response.reply,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        id: uuidv4(),
-        mode: mode,
-        processingType: response.processingType
-      }]);
-      
-      speakResponse(response.reply);
-    } catch (error) {
-      const modeMsg = getModeWelcomeMessage();
-      setMsgs(prev => [...prev, {
-        from: 'System',
-        text: `Switched to ${mode.toUpperCase()} mode. ${modeMsg}`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        id: uuidv4(),
-        mode: mode
-      }]);
-      speakResponse(modeMsg);
-    }
+    await handleUser(quickQueries[action], true);
   }
 
   async function handleLeadSubmit() {
     if (!leadData.name || !leadData.email) return;
     
     try {
-      await captureLead(leadData, sessionId, aiMode);
+      await captureLead(leadData, sessionId, 'agentic');
       setShowLeadCapture(false);
       setLeadData({ name: '', email: '', phone: '', message: '' });
       
@@ -655,36 +512,29 @@ export default function ChatAssistant() {
 
   const getButtonIcon = () => {
     if (isProcessing) return '⚙️';
-    if (listening) return '🔊';
-    if (isSpeaking) return '🔢';
-    
-    switch (aiMode) {
-      case 'asi': return '🧠';
-      case 'agi': return '🤖';
-      case 'agentic': return '🔬';
-      default: return '⚖️';
-    }
+    if (listening) return '🎤';
+    if (isSpeaking) return '🔊';
+    return '⚖️';
   };
 
   const getStatusText = () => {
-    if (isProcessing) return `Processing with ${aiMode.toUpperCase()}...`;
+    if (isProcessing) return 'Processing...';
     if (listening) return 'Listening...';
     if (isSpeaking) return 'Speaking...';
-    return 'Ready';
+    return 'Online';
   };
 
   return (
     <>
       {open && (
-        <ChatBox mode={aiMode}>
+        <ChatBox>
           <ChatHeader 
             listening={listening || isSpeaking} 
             processing={isProcessing}
-            mode={aiMode}
           >
             <div>
-              <h3>Advocate Arjun - {aiMode.toUpperCase()}</h3>
-              <div className="ai-mode-indicator">
+              <h3>Advocate Arjun - Legal AI</h3>
+              <div className="status-info">
                 <div className="status-dot"></div>
                 <span className={isProcessing ? 'processing-text' : ''}>
                   {getStatusText()}
@@ -696,31 +546,18 @@ export default function ChatAssistant() {
           
           <MessagesContainer>
             {msgs.map((msg) => (
-              <Message key={msg.id} isUser={msg.from === 'You'} mode={msg.mode || aiMode}>
+              <Message key={msg.id} isUser={msg.from === 'You'}>
                 <div className="message-header">
                   <span className="sender">{msg.from}</span>
-                  {msg.mode && msg.from === 'Advocate Arjun' && (
-                    <span className="ai-mode-badge">{msg.mode.toUpperCase()}</span>
-                  )}
-                  {msg.processingType && (
-                    <span className="processing-type">{msg.processingType}</span>
-                  )}
                   <span className="timestamp">{msg.timestamp}</span>
                 </div>
-                <div className="content">
-                  {msg.text}
-                  {msg.confidence && (
-                    <div className="confidence-indicator">
-                      Confidence: {Math.round(msg.confidence * 100)}%
-                    </div>
-                  )}
-                </div>
+                <div className="content">{msg.text}</div>
               </Message>
             ))}
             
             {isTyping && (
               <TypingIndicator>
-                <span>Advocate Arjun is processing with {aiMode.toUpperCase()}...</span>
+                <span>Advocate Arjun is analyzing...</span>
                 <div className="dots">
                   <div className="dot"></div>
                   <div className="dot"></div>
@@ -734,7 +571,7 @@ export default function ChatAssistant() {
           
           {showLeadCapture && (
             <LeadCaptureForm>
-              <div className="form-title">Schedule Legal Consultation</div>
+              <div className="form-title">📅 Schedule Legal Consultation</div>
               <div className="form-row">
                 <input
                   type="text"
@@ -771,57 +608,36 @@ export default function ChatAssistant() {
             </LeadCaptureForm>
           )}
           
-          <ModeSelector activeMode={aiMode}>
-            <div className="mode-title">AI Intelligence Level</div>
-            <div className="mode-buttons">
-              <button 
-                className="mode-btn" 
-                currentBtn="standard"
-                onClick={() => switchMode('standard')}
-                disabled={isProcessing}
-              >
-                Standard
+          <QuickActions>
+            <div className="quick-title">Quick Actions</div>
+            <div className="quick-buttons">
+              <button className="quick-btn" onClick={() => handleQuickAction('contract')}>
+                📄 Contract Review
               </button>
-              <button 
-                className="mode-btn"
-                currentBtn="agentic" 
-                onClick={() => switchMode('agentic')}
-                disabled={isProcessing}
-              >
-                Agentic
+              <button className="quick-btn" onClick={() => handleQuickAction('employment')}>
+                💼 Employment Law
               </button>
-              <button 
-                className="mode-btn"
-                currentBtn="agi"
-                onClick={() => switchMode('agi')}
-                disabled={isProcessing}
-              >
-                AGI
+              <button className="quick-btn" onClick={() => handleQuickAction('property')}>
+                🏠 Property Matters
               </button>
-              <button 
-                className="mode-btn"
-                currentBtn="asi"
-                onClick={() => switchMode('asi')}
-                disabled={isProcessing}
-              >
-                ASI
+              <button className="quick-btn" onClick={() => handleQuickAction('consultation')}>
+                📞 Book Consultation
               </button>
             </div>
-          </ModeSelector>
+          </QuickActions>
         </ChatBox>
       )}
       
       <ChatBtn 
         listening={listening || isSpeaking}
         processing={isProcessing}
-        mode={aiMode}
         onClick={toggleRecording}
-        title={`${aiMode.toUpperCase()} Mode - ${
+        title={
           isProcessing ? "Processing..." :
           listening ? "Stop listening" : 
           isSpeaking ? "Speaking..." : 
           "Start chat"
-        }`}
+        }
       >
         {getButtonIcon()}
       </ChatBtn>
