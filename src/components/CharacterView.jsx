@@ -1,4 +1,4 @@
-// Simplified CharacterView.jsx - Single Smart AI, No Confusion
+// Simplified CharacterView.jsx - Smart AI Only, No Mode Confusion
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import styled, { keyframes, createGlobalStyle } from "styled-components";
@@ -12,9 +12,9 @@ const morphBackground = keyframes`
 `;
 
 const agenticPulse = keyframes`
-  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(184, 115, 51, 0.7); }
-  50% { transform: scale(1.1); box-shadow: 0 0 0 20px rgba(184, 115, 51, 0.3); }
-  100% { transform: scale(1); box-shadow: 0 0 0 40px rgba(184, 115, 51, 0); }
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7); }
+  50% { transform: scale(1.1); box-shadow: 0 0 0 20px rgba(102, 126, 234, 0.3); }
+  100% { transform: scale(1); box-shadow: 0 0 0 40px rgba(102, 126, 234, 0); }
 `;
 
 const processingIndicator = keyframes`
@@ -22,8 +22,6 @@ const processingIndicator = keyframes`
   50% { opacity: 1; }
   100% { opacity: 0.3; }
 `;
-
-const fadeIn = keyframes`from { opacity:0 } to { opacity:1 }`;
 
 const GlobalStyles = createGlobalStyle`
   * { box-sizing: border-box; }
@@ -37,7 +35,38 @@ const Container = styled.div`
   overflow: hidden;
   background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #667eea 100%);
   animation: ${morphBackground} 15s infinite ease-in-out;
-  transition: background 0.8s ease;
+`;
+
+const BrandingBar = styled.div`
+  position: absolute;
+  top: 2rem;
+  left: 2rem;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  color: white;
+  padding: 1rem 1.5rem;
+  border-radius: 20px;
+  border: 1px solid rgba(102, 126, 234, 0.3);
+  z-index: 100;
+  
+  @media (max-width: 768px) {
+    top: 1rem;
+    left: 1rem;
+    padding: 0.8rem 1.2rem;
+  }
+  
+  .logo {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #667eea;
+    margin-bottom: 0.3rem;
+  }
+  
+  .tagline {
+    font-size: 0.85rem;
+    opacity: 0.9;
+    color: #fbbf24;
+  }
 `;
 
 const AICore = styled.div`
@@ -53,7 +82,7 @@ const AICore = styled.div`
     props.isProcessing ? processingIndicator :
     props.isSpeaking ? agenticPulse :
     'none'
-  } ${props => props.isProcessing ? '1.5s' : '3s'} infinite ease-in-out;
+  } ${props => props.isProcessing ? '1.5s' : '2.5s'} infinite ease-in-out;
   box-shadow: 0 0 50px rgba(102, 126, 234, 0.5), inset 0 0 50px rgba(255, 255, 255, 0.1);
   cursor: pointer;
   transition: all 0.3s ease;
@@ -72,6 +101,15 @@ const AICore = styled.div`
     font-size: 4rem;
     filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.8));
   }
+  
+  @media (max-width: 768px) {
+    width: 200px;
+    height: 200px;
+    
+    &::after {
+      font-size: 3rem;
+    }
+  }
 `;
 
 const StatusDisplay = styled.div`
@@ -83,13 +121,15 @@ const StatusDisplay = styled.div`
   color: white;
   padding: 1rem 1.5rem;
   border-radius: 20px;
-  border: 1px solid rgba(184, 115, 51, 0.3);
+  border: 1px solid rgba(102, 126, 234, 0.3);
   min-width: 200px;
+  z-index: 100;
   
-  .ai-info {
+  .status-title {
     font-weight: 600;
     margin-bottom: 0.5rem;
     color: #667eea;
+    font-size: 1rem;
   }
   
   .status-text {
@@ -136,6 +176,7 @@ const ResponseBubble = styled.div`
     transform: none;
     max-width: none;
     padding: 1.5rem;
+    bottom: 6rem;
   }
 
   .response-text {
@@ -154,7 +195,7 @@ const ResponseBubble = styled.div`
     position: absolute;
     top: 1rem;
     right: 1rem;
-    background: rgba(184, 115, 51, 0.3);
+    background: rgba(102, 126, 234, 0.3);
     border: none;
     color: white;
     width: 30px;
@@ -168,7 +209,7 @@ const ResponseBubble = styled.div`
     transition: all 0.3s ease;
     
     &:hover {
-      background: rgba(184, 115, 51, 0.6);
+      background: rgba(102, 126, 234, 0.6);
       transform: scale(1.1);
     }
   }
@@ -197,6 +238,7 @@ const InfoBox = styled.div`
   border-radius: 15px;
   border: 1px solid rgba(102, 126, 234, 0.3);
   max-width: 300px;
+  z-index: 100;
   
   @media (max-width: 768px) {
     display: none;
@@ -212,37 +254,6 @@ const InfoBox = styled.div`
     font-size: 0.85rem;
     line-height: 1.4;
     opacity: 0.9;
-  }
-`;
-
-const BrandingBar = styled.div`
-  position: absolute;
-  top: 2rem;
-  left: 2rem;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(10px);
-  color: white;
-  padding: 1rem 1.5rem;
-  border-radius: 20px;
-  border: 1px solid rgba(102, 126, 234, 0.3);
-  
-  @media (max-width: 768px) {
-    top: 1rem;
-    left: 1rem;
-    padding: 0.8rem 1.2rem;
-  }
-  
-  .logo {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #667eea;
-    margin-bottom: 0.3rem;
-  }
-  
-  .tagline {
-    font-size: 0.85rem;
-    opacity: 0.9;
-    color: #fbbf24;
   }
 `;
 
@@ -264,7 +275,7 @@ export default function CharacterView({ onMessage }) {
   async function handleVoiceCommand(text) {
     if (!text?.trim()) return;
     
-    console.log('Processing voice command:', text);
+    console.log('Processing with Smart AI:', text);
     
     setAiState('processing');
     setIsProcessing(true);
@@ -275,6 +286,7 @@ export default function CharacterView({ onMessage }) {
     setAiText('Processing your legal query...');
 
     try {
+      // Single fast API call
       const response = await sendMessage(text.trim(), sessionId, 'agentic');
       
       setIsProcessing(false);
@@ -282,12 +294,12 @@ export default function CharacterView({ onMessage }) {
       setAiText(response.reply);
       onMessage?.(response.reply);
       
-      console.log('Response generated:', response.processingType);
+      console.log('Smart AI response generated');
       
       await speakResponse(response.reply);
       
     } catch (err) {
-      console.error('AI processing error:', err);
+      console.error('Smart AI error:', err);
       setIsProcessing(false);
       setAiState('idle');
       const errorMessage = 'I encountered an issue processing your request. Please try again.';
@@ -362,7 +374,7 @@ export default function CharacterView({ onMessage }) {
       setIsSpeaking(false);
       setIsProcessing(false);
     } else if (aiState === 'processing') {
-      return;
+      return; // Can't interrupt
     } else {
       setAiState('listening');
       listen({ interimResults: false });
@@ -380,24 +392,24 @@ export default function CharacterView({ onMessage }) {
     return stateLabels[aiState];
   };
 
-  const getProcessingInfo = () => {
-    if (!isProcessing) return null;
-    return 'Smart AI analyzing your legal query...';
-  };
-
   return (
     <>
       <GlobalStyles />
       <Container ref={container}>
+        <BrandingBar>
+          <div className="logo">FoxMandal Smart AI</div>
+          <div className="tagline">Intelligent Legal Assistant</div>
+        </BrandingBar>
+        
         <StatusDisplay>
-          <div className="ai-info">FoxMandal Legal AI</div>
+          <div className="status-title">Status</div>
           <div className="status-text">
             {loading ? "Initializing..." : 
              isProcessing ? "Processing" :
              getStatusText()}
           </div>
           {isProcessing && (
-            <div className="processing-info">{getProcessingInfo()}</div>
+            <div className="processing-info">Smart AI analyzing your query...</div>
           )}
         </StatusDisplay>
 
@@ -425,9 +437,9 @@ export default function CharacterView({ onMessage }) {
         )}
         
         <InfoBox>
-          <div className="info-title">How to Use</div>
+          <div className="info-title">💡 How to Use</div>
           <div className="info-text">
-            Click the AI core to start voice interaction. Ask any legal question and get intelligent analysis from our AI-powered legal assistant.
+            Click the AI core to start voice interaction. Ask any legal question and get fast, intelligent analysis from our advanced legal assistant.
           </div>
         </InfoBox>
       </Container>
