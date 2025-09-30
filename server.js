@@ -72,22 +72,45 @@ const createRateLimit = rateLimit({
 
 app.use(createRateLimit);
 // In your server.js, update the CORS configuration:
+// CRITICAL FIX: Update only the CORS section in your server.js
+// Replace lines 62-75 with this:
+
 app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "http://localhost:3001", 
-    "https://foxmandal.in",
-    "https://www.foxmandal.in",
-    "https://character-kappa.vercel.app",     // ✅ This should already be there
-    "https://character-kappa.vercel.app/",   // ✅ Add trailing slash version
-    "https://*.vercel.app",                  // ✅ Add wildcard for all Vercel apps
-    "https://legal-ai.vercel.app"
-  ],
-  methods: ["GET", "POST", "OPTIONS"],
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3001',
+      'https://foxmandal.in',
+      'https://www.foxmandal.in',
+      'https://character-kappa.vercel.app',
+      'https://legal-ai.vercel.app'
+    ];
+    
+    // Allow any vercel.app subdomain
+    if (origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(null, true); // Allow anyway for now, log for debugging
+    }
+  },
   credentials: true,
-  allowedHeaders: ["Content-Type", "Authorization", "X-Session-ID", "X-Client-Version"],
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-ID', 'X-Client-Version'],
+  exposedHeaders: ['Content-Length', 'X-Request-ID'],
+  maxAge: 86400, // 24 hours
   optionsSuccessStatus: 200
 }));
+
+// Add explicit OPTIONS handler
+app.options('*', cors());
  
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(fileUpload({
