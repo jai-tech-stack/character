@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import { Upload, FileText, AlertCircle, CheckCircle, Loader, X, FileCheck } from 'lucide-react';
+import { analyzeDocument } from '../api/chatApi';
 
-const DocumentAnalysisComponent = ({ sessionId, currentAIMode = 'standard', onAnalysisComplete }) => {
+const DocumentAnalysisComponent = ({ sessionId, onAnalysisComplete }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [analysis, setAnalysis] = useState(null);
   const [error, setError] = useState(null);
   const [dragActive, setDragActive] = useState(false);
-
-  const API_BASE_URL = 'https://character-chan.onrender.com';
 
   const handleDrag = (e) => {
     e.preventDefault();
@@ -57,7 +56,7 @@ const DocumentAnalysisComponent = ({ sessionId, currentAIMode = 'standard', onAn
     }
   };
 
-  const analyzeDocument = async () => {
+  const analyzeDoc = async () => {
     if (!selectedFile) {
       setError('Please select a file first');
       return;
@@ -66,27 +65,8 @@ const DocumentAnalysisComponent = ({ sessionId, currentAIMode = 'standard', onAn
     setUploading(true);
     setError(null);
 
-    const formData = new FormData();
-    formData.append('document', selectedFile);
-    formData.append('sessionId', sessionId);
-    formData.append('aiMode', currentAIMode);
-    formData.append('message', `Analyzing document: ${selectedFile.name}`);
-
     try {
-      const response = await fetch(`${API_BASE_URL}/analyze-document`, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'X-Session-ID': sessionId
-        }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Analysis failed');
-      }
-
-      const result = await response.json();
+      const result = await analyzeDocument(selectedFile, sessionId, 'agentic');
       setAnalysis(result);
       
       if (onAnalysisComplete) {
@@ -113,30 +93,20 @@ const DocumentAnalysisComponent = ({ sessionId, currentAIMode = 'standard', onAn
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  const getModeColor = (mode) => {
-    const colors = {
-      'standard': 'bg-blue-100 text-blue-800 border-blue-300',
-      'agentic': 'bg-purple-100 text-purple-800 border-purple-300',
-      'agi': 'bg-orange-100 text-orange-800 border-orange-300',
-      'asi': 'bg-red-100 text-red-800 border-red-300'
-    };
-    return colors[mode] || colors.standard;
-  };
-
   return (
     <div className="w-full max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2 mb-2">
           <FileCheck className="w-7 h-7 text-blue-600" />
-          Legal Document Analysis
+          Smart AI Document Analysis
         </h2>
-        <p className="text-gray-600">Upload contracts, agreements, or legal documents for AI-powered analysis</p>
+        <p className="text-gray-600">Upload contracts, agreements, or legal documents for intelligent AI-powered analysis</p>
       </div>
 
-      {/* AI Mode Indicator */}
+      {/* Smart AI Badge */}
       <div className="mb-4">
-        <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold border ${getModeColor(currentAIMode)}`}>
-          {currentAIMode.toUpperCase()} Mode Analysis
+        <span className="inline-block px-3 py-1 rounded-full text-sm font-semibold border bg-blue-100 text-blue-800 border-blue-300">
+          Smart AI Analysis
         </span>
       </div>
 
@@ -195,7 +165,7 @@ const DocumentAnalysisComponent = ({ sessionId, currentAIMode = 'standard', onAn
           </div>
 
           <button
-            onClick={analyzeDocument}
+            onClick={analyzeDoc}
             disabled={uploading}
             className={`w-full py-3 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 ${
               uploading
@@ -206,7 +176,7 @@ const DocumentAnalysisComponent = ({ sessionId, currentAIMode = 'standard', onAn
             {uploading ? (
               <>
                 <Loader className="w-5 h-5 animate-spin" />
-                Analyzing with {currentAIMode.toUpperCase()} AI...
+                Analyzing with Smart AI...
               </>
             ) : (
               <>
@@ -254,7 +224,7 @@ const DocumentAnalysisComponent = ({ sessionId, currentAIMode = 'standard', onAn
             </div>
             <div>
               <p className="text-xs text-gray-600 mb-1">AI Mode</p>
-              <p className="font-semibold text-gray-800 uppercase">{analysis.aiMode}</p>
+              <p className="font-semibold text-gray-800">Smart AI</p>
             </div>
             <div>
               <p className="text-xs text-gray-600 mb-1">Processing Time</p>
@@ -291,6 +261,7 @@ const DocumentAnalysisComponent = ({ sessionId, currentAIMode = 'standard', onAn
                 a.href = url;
                 a.download = `analysis-${analysis.fileName}-${Date.now()}.json`;
                 a.click();
+                URL.revokeObjectURL(url);
               }}
               className="py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
             >

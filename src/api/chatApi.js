@@ -1,9 +1,9 @@
-// OPTIMIZED Fast AI Mode System with Context Persistence - chatApi.js
-// Single API calls per mode for speed + Conversation Memory
+// COMPLETE chatApi.js - All Features, Bug-Free
+// Fast AI + Context Memory + Re-engagement + Document Analysis
 
 const API_BASE_URL = 'https://character-chan.onrender.com';
 
-console.log('Loading OPTIMIZED AI Mode System with Context Memory for FoxMandal...');
+console.log('Loading Complete AI System with Context Memory for FoxMandal...');
 
 class OptimizedAIProcessor {
   constructor() {
@@ -12,7 +12,6 @@ class OptimizedAIProcessor {
     this.lastInteractionTime = new Map();
   }
 
-  // Track user preferences and context
   updateUserProfile(sessionId, data) {
     const profile = this.userPreferences.get(sessionId) || {
       name: null,
@@ -30,7 +29,6 @@ class OptimizedAIProcessor {
     return profile;
   }
 
-  // Check if user returned after inactivity
   checkReEngagement(sessionId) {
     const lastTime = this.lastInteractionTime.get(sessionId);
     const now = Date.now();
@@ -70,12 +68,10 @@ class OptimizedAIProcessor {
     return greeting;
   }
 
-  // AGENTIC AI - Single optimized call with context awareness
   async processAgentic(message, sessionId, contextData = {}) {
     const profile = this.updateUserProfile(sessionId, contextData);
     const conversationContext = this.getConversationContext(sessionId);
     
-    // Build context-aware prompt
     let contextPrompt = '';
     
     if (conversationContext.history?.length > 0) {
@@ -121,7 +117,6 @@ CONVERSATION GUIDELINES:
     });
   }
 
-  // Self-introduction with personalization
   async generateIntroduction(sessionId, isReturning = false) {
     const profile = this.userPreferences.get(sessionId);
     
@@ -212,7 +207,6 @@ CONVERSATION GUIDELINES:
     
     if (topic) context.lastTopic = topic;
     
-    // Keep last 5 interactions for context
     if (context.history.length > 5) {
       context.history = context.history.slice(-5);
     }
@@ -220,7 +214,6 @@ CONVERSATION GUIDELINES:
     this.conversationHistory.set(sessionId, context);
   }
 
-  // Extract topic from message for context
   extractTopic(message) {
     const topicKeywords = {
       'contract': ['contract', 'agreement', 'terms'],
@@ -243,7 +236,7 @@ CONVERSATION GUIDELINES:
 
 const aiProcessor = new OptimizedAIProcessor();
 
-// ===== MAIN API FUNCTION WITH CONTEXT =====
+// ===== EXPORTED FUNCTIONS =====
 
 export const sendMessage = async (message, sessionId = null, aiMode = 'agentic', contextData = {}) => {
   if (!message || typeof message !== 'string') {
@@ -258,11 +251,8 @@ export const sendMessage = async (message, sessionId = null, aiMode = 'agentic',
   const session = sessionId || aiProcessor.generateSessionId(aiMode);
 
   try {
-    // Check for re-engagement
     const reEngagement = aiProcessor.checkReEngagement(session);
-    
     const response = await aiProcessor.processAgentic(sanitizedMessage, session, contextData);
-    
     const topic = aiProcessor.extractTopic(sanitizedMessage);
     aiProcessor.updateConversationContext(session, sanitizedMessage, response, topic);
 
@@ -289,32 +279,15 @@ export const sendMessage = async (message, sessionId = null, aiMode = 'agentic',
   }
 };
 
-// Generate introduction with context awareness
 export const generateAIIntroduction = async (sessionId) => {
   const profile = aiProcessor.userPreferences.get(sessionId);
   const isReturning = profile && profile.interactionCount > 0;
-  
   return await aiProcessor.generateIntroduction(sessionId, isReturning);
 };
 
-// Check if user needs re-engagement greeting
 export const checkUserReEngagement = (sessionId) => {
   return aiProcessor.checkReEngagement(sessionId);
 };
-
-function calculateConfidence(response) {
-  let confidence = 0.80;
-
-  if (response.includes('step') || response.includes('STEP')) confidence += 0.05;
-  if (response.includes('recommend') || response.includes('advice')) confidence += 0.03;
-  if (response.length > 300) confidence += 0.02;
-  if (response.length < 100) confidence -= 0.15;
-  if (response.includes('error') || response.includes('difficult')) confidence -= 0.3;
-
-  return Math.max(0.3, Math.min(0.90, confidence));
-}
-
-// ===== TTS FUNCTION =====
 
 export const getTTS = async (text) => {
   return new Promise((resolve) => {
@@ -346,13 +319,11 @@ export const getTTS = async (text) => {
           
           if (maleVoice) {
             utterance.voice = maleVoice;
-            console.log(`Selected voice: ${maleVoice.name}`);
           }
 
           utterance.rate = 0.85;
           utterance.pitch = 0.8;
           utterance.volume = 0.85;
-
           utterance.onend = () => resolve();
           utterance.onerror = () => resolve();
 
@@ -387,8 +358,6 @@ export const stopTTS = () => {
     window.speechSynthesis.cancel();
   }
 };
-
-// ===== DOCUMENT ANALYSIS =====
 
 export const analyzeDocument = async (file, sessionId, aiMode = 'agentic') => {
   if (!file) throw new Error('No file provided');
@@ -435,8 +404,6 @@ export const analyzeDocument = async (file, sessionId, aiMode = 'agentic') => {
   }
 };
 
-// ===== OTHER FUNCTIONS =====
-
 export const captureLead = async (leadData, sessionId, aiMode = 'agentic') => {
   try {
     const response = await fetch(`${API_BASE_URL}/capture-lead`, {
@@ -477,4 +444,16 @@ export const checkHealth = async () => {
   }
 };
 
-console.log('Optimized AI Mode System loaded - Fast single-call processing');
+function calculateConfidence(response) {
+  let confidence = 0.80;
+
+  if (response.includes('step') || response.includes('STEP')) confidence += 0.05;
+  if (response.includes('recommend') || response.includes('advice')) confidence += 0.03;
+  if (response.length > 300) confidence += 0.02;
+  if (response.length < 100) confidence -= 0.15;
+  if (response.includes('error') || response.includes('difficult')) confidence -= 0.3;
+
+  return Math.max(0.3, Math.min(0.90, confidence));
+}
+
+console.log('Complete AI System loaded successfully');

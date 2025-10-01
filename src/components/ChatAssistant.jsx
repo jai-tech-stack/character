@@ -1,5 +1,5 @@
-// Simplified Chat Assistant with Re-engagement & Context - ChatAssistant.jsx
-// Single "Smart AI" mode + Inactivity Detection + Natural Conversation
+// FINAL ChatAssistant.jsx - Complete with All Features
+// Features: Fast AI, Re-engagement, Context Memory, Lead Capture, Quick Actions
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import styled, { keyframes } from "styled-components";
@@ -7,6 +7,7 @@ import { useSpeechRecognition } from "react-speech-kit";
 import { sendMessage, getTTS, stopTTS, captureLead, generateAIIntroduction, checkUserReEngagement } from "../api/chatApi";
 import { v4 as uuidv4 } from "uuid";
 
+// Animations
 const pulse = keyframes`
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.1); }
@@ -32,6 +33,7 @@ const glowPulse = keyframes`
   50% { box-shadow: 0 0 40px rgba(102, 126, 234, 0.7); }
 `;
 
+// Styled Components
 const ChatBtn = styled.button`
   position: fixed;
   bottom: 2rem;
@@ -181,6 +183,11 @@ const Message = styled.div`
   .timestamp {
     font-size: 0.7rem;
     color: #999;
+  }
+  
+  .re-engagement-badge {
+    font-size: 0.8rem;
+    margin-left: 0.3rem;
   }
   
   .content {
@@ -350,6 +357,7 @@ const QuickActions = styled.div`
   }
 `;
 
+// Main Component
 export default function ChatAssistant() {
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState([]);
@@ -358,6 +366,8 @@ export default function ChatAssistant() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showLeadCapture, setShowLeadCapture] = useState(false);
+  const [hasNewMessage, setHasNewMessage] = useState(false);
+  const [lastActivityTime, setLastActivityTime] = useState(Date.now());
   const [leadData, setLeadData] = useState({
     name: '',
     email: '',
@@ -366,9 +376,39 @@ export default function ChatAssistant() {
   });
   
   const messagesEndRef = useRef(null);
+  const inactivityTimerRef = useRef(null);
   const { listen, listening, stop } = useSpeechRecognition({ 
     onResult: handleUser 
   });
+
+  // Inactivity detection - 2.5 minutes
+  useEffect(() => {
+    if (!open) return;
+
+    const checkInactivity = () => {
+      const now = Date.now();
+      const inactiveMinutes = (now - lastActivityTime) / 60000;
+      
+      if (inactiveMinutes >= 2.5 && msgs.length > 0 && !isTyping && !listening) {
+        handleReEngagement();
+      }
+    };
+
+    inactivityTimerRef.current = setInterval(checkInactivity, 30000);
+
+    return () => {
+      if (inactivityTimerRef.current) {
+        clearInterval(inactivityTimerRef.current);
+      }
+    };
+  }, [open, lastActivityTime, msgs.length, isTyping, listening]);
+
+  // Update activity time on user interaction
+  useEffect(() => {
+    if (listening || isTyping) {
+      setLastActivityTime(Date.now());
+    }
+  }, [listening, isTyping]);
 
   useEffect(() => {
     scrollToBottom();
@@ -376,6 +416,35 @@ export default function ChatAssistant() {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Re-engagement when user returns
+  const handleReEngagement = async () => {
+    const reEngagement = checkUserReEngagement(sessionId);
+    
+    if (reEngagement.shouldGreet) {
+      const greeting = reEngagement.greeting;
+      
+      if (!open) {
+        setHasNewMessage(true);
+      }
+      
+      const aiMessage = {
+        from: 'Advocate Arjun',
+        text: greeting,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        id: uuidv4(),
+        isReEngagement: true
+      };
+      
+      setMsgs(prev => [...prev, aiMessage]);
+      
+      if (open) {
+        await speakResponse(greeting);
+      }
+      
+      setLastActivityTime(Date.now());
+    }
   };
 
   const speakResponse = useCallback(async (text) => {
@@ -393,6 +462,9 @@ export default function ChatAssistant() {
   async function handleUser(text, isQuickAction = false) {
     if (!text?.trim()) return;
     
+    setLastActivityTime(Date.now());
+    setHasNewMessage(false);
+    
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
     if (!isQuickAction) {
@@ -408,9 +480,12 @@ export default function ChatAssistant() {
     setIsProcessing(true);
 
     try {
-      console.log('Processing with Smart AI...');
+      const contextData = {
+        legalArea: extractLegalArea(text),
+        name: leadData.name || null
+      };
       
-      const response = await sendMessage(text, sessionId, 'agentic');
+      const response = await sendMessage(text, sessionId, 'agentic', contextData);
       
       setIsTyping(false);
       setIsProcessing(false);
@@ -419,15 +494,16 @@ export default function ChatAssistant() {
         from: 'Advocate Arjun', 
         text: response.reply, 
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        id: uuidv4()
+        id: uuidv4(),
+        contextRetained: response.contextRetained
       };
       
       setMsgs(prev => [...prev, aiMessage]);
 
-      // Auto-trigger lead capture for consultation queries
       if (response.reply.toLowerCase().includes('consultation') || 
           text.toLowerCase().includes('lawyer') ||
-          text.toLowerCase().includes('legal advice')) {
+          text.toLowerCase().includes('legal advice') ||
+          text.toLowerCase().includes('hire')) {
         setTimeout(() => setShowLeadCapture(true), 2000);
       }
 
@@ -438,7 +514,7 @@ export default function ChatAssistant() {
       console.error('AI error:', err);
       setIsTyping(false);
       setIsProcessing(false);
-      const errorMsg = `I encountered an issue processing your request. Please try again.`;
+      const errorMsg = `I encountered an issue. Could you please rephrase your question?`;
       setMsgs(prev => [...prev, { 
         from: 'Advocate Arjun', 
         text: errorMsg, 
@@ -449,19 +525,42 @@ export default function ChatAssistant() {
     }
   }
 
-  function toggleRecording() {
+  function extractLegalArea(text) {
+    const lowerText = text.toLowerCase();
+    if (lowerText.includes('contract')) return 'contracts';
+    if (lowerText.includes('employment') || lowerText.includes('job')) return 'employment_law';
+    if (lowerText.includes('property') || lowerText.includes('real estate')) return 'real_estate';
+    if (lowerText.includes('tax')) return 'tax_law';
+    if (lowerText.includes('company') || lowerText.includes('business')) return 'corporate_law';
+    return 'general_inquiry';
+  }
+
+  async function toggleRecording() {
     if (!open) {
       setOpen(true);
+      setHasNewMessage(false);
       if (msgs.length === 0) {
         setTimeout(async () => {
-          const welcomeMsg = "Hello! I'm Advocate Arjun from FoxMandal. I can help you with any legal questions. How can I assist you today?";
-          setMsgs([{
-            from: 'Advocate Arjun',
-            text: welcomeMsg,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            id: uuidv4()
-          }]);
-          speakResponse(welcomeMsg);
+          try {
+            const welcomeMsg = await generateAIIntroduction(sessionId);
+            setMsgs([{
+              from: 'Advocate Arjun',
+              text: welcomeMsg,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              id: uuidv4(),
+              isIntroduction: true
+            }]);
+            speakResponse(welcomeMsg);
+          } catch (error) {
+            const fallbackMsg = "Hello! I'm Advocate Arjun from FoxMandal. I can help you with any legal questions. How can I assist you today?";
+            setMsgs([{
+              from: 'Advocate Arjun',
+              text: fallbackMsg,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              id: uuidv4()
+            }]);
+            speakResponse(fallbackMsg);
+          }
         }, 500);
       }
     }
@@ -476,6 +575,8 @@ export default function ChatAssistant() {
   }
 
   async function handleQuickAction(action) {
+    setLastActivityTime(Date.now());
+    
     const quickQueries = {
       'contract': 'I need help reviewing a contract',
       'employment': 'I have questions about employment law',
@@ -492,9 +593,8 @@ export default function ChatAssistant() {
     try {
       await captureLead(leadData, sessionId, 'agentic');
       setShowLeadCapture(false);
-      setLeadData({ name: '', email: '', phone: '', message: '' });
       
-      const successMsg = "Thank you! Our legal team will contact you within 24 hours for a consultation.";
+      const successMsg = `Thank you${leadData.name ? ', ' + leadData.name : ''}! Our legal team will contact you within 24 hours for a consultation.`;
       setMsgs(prev => [...prev, {
         from: 'System',
         text: successMsg,
@@ -502,6 +602,8 @@ export default function ChatAssistant() {
         id: uuidv4()
       }]);
       speakResponse(successMsg);
+      
+      setLeadData({ name: '', email: '', phone: '', message: '' });
       
     } catch (error) {
       console.error('Lead capture error:', error);
@@ -540,7 +642,7 @@ export default function ChatAssistant() {
             processing={isProcessing}
           >
             <div>
-              <h3>Advocate Arjun - Legal AI</h3>
+              <h3>Advocate Arjun - Smart AI</h3>
               <div className="status-info">
                 <div className="status-dot"></div>
                 <span className={isProcessing ? 'processing-text' : ''}>
@@ -557,6 +659,9 @@ export default function ChatAssistant() {
                 <div className="message-header">
                   <span className="sender">{msg.from}</span>
                   <span className="timestamp">{msg.timestamp}</span>
+                  {msg.isReEngagement && (
+                    <span className="re-engagement-badge">👋</span>
+                  )}
                 </div>
                 <div className="content">{msg.text}</div>
               </Message>
@@ -578,7 +683,7 @@ export default function ChatAssistant() {
           
           {showLeadCapture && (
             <LeadCaptureForm>
-              <div className="form-title">📅 Schedule Legal Consultation</div>
+              <div className="form-title">Schedule Legal Consultation</div>
               <div className="form-row">
                 <input
                   type="text"
@@ -619,16 +724,16 @@ export default function ChatAssistant() {
             <div className="quick-title">Quick Actions</div>
             <div className="quick-buttons">
               <button className="quick-btn" onClick={() => handleQuickAction('contract')}>
-                📄 Contract Review
+                Contract Review
               </button>
               <button className="quick-btn" onClick={() => handleQuickAction('employment')}>
-                💼 Employment Law
+                Employment Law
               </button>
               <button className="quick-btn" onClick={() => handleQuickAction('property')}>
-                🏠 Property Matters
+                Property Matters
               </button>
               <button className="quick-btn" onClick={() => handleQuickAction('consultation')}>
-                📞 Book Consultation
+                Book Consultation
               </button>
             </div>
           </QuickActions>
@@ -638,8 +743,10 @@ export default function ChatAssistant() {
       <ChatBtn 
         listening={listening || isSpeaking}
         processing={isProcessing}
+        hasNewMessage={hasNewMessage}
         onClick={toggleRecording}
         title={
+          hasNewMessage ? "New message from AI" :
           isProcessing ? "Processing..." :
           listening ? "Stop listening" : 
           isSpeaking ? "Speaking..." : 

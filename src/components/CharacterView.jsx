@@ -266,11 +266,55 @@ export default function CharacterView({ onMessage }) {
   const [aiState, setAiState] = useState('idle');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [lastActivityTime, setLastActivityTime] = useState(Date.now());
   const [sessionId] = useState(() => `session_foxmandal_agentic_${Date.now()}_${Math.random().toString(36).substring(2, 15).toLowerCase()}`);
   
+  const inactivityTimerRef = useRef(null);
   const { listen, listening, stop } = useSpeechRecognition({ 
     onResult: handleVoiceCommand 
   });
+
+  // Inactivity detection - check every 30 seconds
+  useEffect(() => {
+    const checkInactivity = () => {
+      const now = Date.now();
+      const inactiveMinutes = (now - lastActivityTime) / 60000;
+      
+      // Re-engage after 2.5 minutes of inactivity
+      if (inactiveMinutes >= 2.5 && aiState === 'idle' && !showResponse) {
+        handleReEngagement();
+      }
+    };
+
+    inactivityTimerRef.current = setInterval(checkInactivity, 30000);
+
+    return () => {
+      if (inactivityTimerRef.current) {
+        clearInterval(inactivityTimerRef.current);
+      }
+    };
+  }, [lastActivityTime, aiState, showResponse]);
+
+  // Update activity time on interaction
+  useEffect(() => {
+    if (listening || isProcessing) {
+      setLastActivityTime(Date.now());
+    }
+  }, [listening, isProcessing]);
+
+  // Re-engagement logic
+  const handleReEngagement = async () => {
+    const { checkUserReEngagement } = await import("../api/chatApi");
+    const reEngagement = checkUserReEngagement(sessionId);
+    
+    if (reEngagement.shouldGreet) {
+      setShowResponse(true);
+      setAiText(reEngagement.greeting);
+      setAiState('speaking');
+      await speakResponse(reEngagement.greeting);
+      setLastActivityTime(Date.now());
+    }
+  };
 
   async function handleVoiceCommand(text) {
     if (!text?.trim()) return;
@@ -279,6 +323,7 @@ export default function CharacterView({ onMessage }) {
     
     setAiState('processing');
     setIsProcessing(true);
+    setLastActivityTime(Date.now());
     stopTTS();
     stop();
     
@@ -286,7 +331,7 @@ export default function CharacterView({ onMessage }) {
     setAiText('Processing your legal query...');
 
     try {
-      // Single fast API call
+      // Single fast API call with context
       const response = await sendMessage(text.trim(), sessionId, 'agentic');
       
       setIsProcessing(false);
@@ -294,7 +339,7 @@ export default function CharacterView({ onMessage }) {
       setAiText(response.reply);
       onMessage?.(response.reply);
       
-      console.log('Smart AI response generated');
+      console.log('Smart AI response generated with context');
       
       await speakResponse(response.reply);
       
@@ -302,7 +347,7 @@ export default function CharacterView({ onMessage }) {
       console.error('Smart AI error:', err);
       setIsProcessing(false);
       setAiState('idle');
-      const errorMessage = 'I encountered an issue processing your request. Please try again.';
+      const errorMessage = 'I encountered an issue. Could you please rephrase your question?';
       setAiText(errorMessage);
       await speakResponse(errorMessage);
     }
