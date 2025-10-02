@@ -1,9 +1,21 @@
-// COMPLETE chatApi.js - All Features, Bug-Free
-// Fast AI + Context Memory + Re-engagement + Document Analysis
+// ENHANCED chatApi.js - With Multilingual Support
+// Fast AI + Context Memory + Re-engagement + Auto-Language Detection
 
-const API_BASE_URL = 'https://character-chan.onrender.com';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://character-chan.onrender.com';
 
-console.log('Loading Complete AI System with Context Memory for FoxMandal...');
+console.log('Loading Multilingual AI System with Context Memory...');
+
+// Language detection
+function detectLanguage(text) {
+  const hindiPattern = /[\u0900-\u097F]/;
+  const tamilPattern = /[\u0B80-\u0BFF]/;
+  const spanishPattern = /[áéíóúñ¿¡]/i;
+  
+  if (hindiPattern.test(text)) return 'hi';
+  if (tamilPattern.test(text)) return 'ta';
+  if (spanishPattern.test(text)) return 'es';
+  return 'en';
+}
 
 class OptimizedAIProcessor {
   constructor() {
@@ -18,11 +30,13 @@ class OptimizedAIProcessor {
       legalInterests: [],
       interactionCount: 0,
       firstInteraction: Date.now(),
-      preferredTopics: new Set()
+      preferredTopics: new Set(),
+      preferredLanguage: 'en'
     };
 
     if (data.legalArea) profile.preferredTopics.add(data.legalArea);
     if (data.name) profile.name = data.name;
+    if (data.language) profile.preferredLanguage = data.language;
     profile.interactionCount++;
 
     this.userPreferences.set(sessionId, profile);
@@ -50,26 +64,54 @@ class OptimizedAIProcessor {
   generateReEngagementGreeting(sessionId, minutes) {
     const profile = this.userPreferences.get(sessionId);
     const history = this.getConversationContext(sessionId);
+    const lang = profile?.preferredLanguage || 'en';
     
-    let greeting = `Welcome back! `;
-
-    if (profile?.name) {
-      greeting = `Welcome back, ${profile.name}! `;
-    }
+    const greetings = {
+      en: {
+        welcome: `Welcome back${profile?.name ? `, ${profile.name}` : ''}!`,
+        continuing: `I see we were discussing ${history.lastTopic}. Would you like to continue, or is there something new I can help you with?`,
+        fresh: `I'm here to help with any legal questions you have.`,
+        timed: `It's been ${minutes} minutes. How can I assist you with your legal matters today?`
+      },
+      hi: {
+        welcome: `वापस आपका स्वागत है${profile?.name ? `, ${profile.name}` : ''}!`,
+        continuing: `मैं देख रहा हूं कि हम ${history.lastTopic} पर चर्चा कर रहे थे। क्या आप जारी रखना चाहेंगे, या कुछ नया है जिसमें मैं मदद कर सकता हूं?`,
+        fresh: `मैं किसी भी कानूनी प्रश्न में आपकी सहायता के लिए यहां हूं।`,
+        timed: `${minutes} मिनट हो गए हैं। आज मैं आपके कानूनी मामलों में कैसे सहायता कर सकता हूं?`
+      },
+      ta: {
+        welcome: `மீண்டும் வரவேற்கிறோம்${profile?.name ? `, ${profile.name}` : ''}!`,
+        continuing: `நாம் ${history.lastTopic} பற்றி விவாதித்துக் கொண்டிருந்தோம் என்று பார்க்கிறேன். தொடர விரும்புகிறீர்களா, அல்லது நான் உதவக்கூடிய புதிய ஏதாவது உள்ளதா?`,
+        fresh: `எந்தவொரு சட்ட கேள்விகளுக்கும் உதவ நான் இங்கே இருக்கிறேன்.`,
+        timed: `${minutes} நிமிடங்கள் ஆகிவிட்டன. இன்று உங்கள் சட்ட விஷயங்களில் நான் எவ்வாறு உதவ முடியும்?`
+      },
+      es: {
+        welcome: `¡Bienvenido de nuevo${profile?.name ? `, ${profile.name}` : ''}!`,
+        continuing: `Veo que estábamos discutiendo ${history.lastTopic}. ¿Le gustaría continuar, o hay algo nuevo en lo que pueda ayudarle?`,
+        fresh: `Estoy aquí para ayudarle con cualquier pregunta legal que tenga.`,
+        timed: `Han pasado ${minutes} minutos. ¿Cómo puedo asistirle con sus asuntos legales hoy?`
+      }
+    };
+    
+    let greeting = greetings[lang].welcome + ' ';
 
     if (history.lastTopic) {
-      greeting += `I see we were discussing ${history.lastTopic}. Would you like to continue, or is there something new I can help you with?`;
+      greeting += greetings[lang].continuing;
     } else if (minutes < 5) {
-      greeting += `I'm here to help with any legal questions you have.`;
+      greeting += greetings[lang].fresh;
     } else {
-      greeting += `It's been ${minutes} minutes. How can I assist you with your legal matters today?`;
+      greeting += greetings[lang].timed;
     }
 
     return greeting;
   }
 
   async processAgentic(message, sessionId, contextData = {}) {
-    const profile = this.updateUserProfile(sessionId, contextData);
+    const detectedLang = detectLanguage(message);
+    const profile = this.updateUserProfile(sessionId, { 
+      ...contextData, 
+      language: detectedLang 
+    });
     const conversationContext = this.getConversationContext(sessionId);
     
     let contextPrompt = '';
@@ -86,11 +128,16 @@ class OptimizedAIProcessor {
       contextPrompt += `\n\nUser has shown interest in: ${Array.from(profile.preferredTopics).join(', ')}`;
     }
 
+    // Add language instruction
+    const languageInstruction = detectedLang !== 'en' 
+      ? `\n\nIMPORTANT: User is communicating in ${this.getLanguageName(detectedLang)}. Respond in the same language naturally and fluently.`
+      : '';
+
     return await this.sendToBackend({
       message: message + contextPrompt,
       sessionId,
       aiMode: 'agentic',
-      systemPrompt: `You are Advocate Arjun, an advanced legal AI assistant at FoxMandal. ${profile.name ? `The user's name is ${profile.name}.` : ''} This is interaction #${profile.interactionCount}.
+      systemPrompt: `You are Advocate Arjun, an advanced multilingual legal AI assistant at FoxMandal. ${profile.name ? `The user's name is ${profile.name}.` : ''} This is interaction #${profile.interactionCount}.${languageInstruction}
 
 Provide detailed step-by-step legal analysis with natural conversation flow:
 
@@ -111,24 +158,42 @@ CONVERSATION GUIDELINES:
 - Show empathy and emotional intelligence
 - Ask clarifying questions when needed
 - Handle topic changes gracefully
-- Keep responses focused, practical, under 400 words`,
+- Keep responses focused, practical, under 400 words
+- Respond in user's language (${this.getLanguageName(detectedLang)})`,
       temperature: 0.4,
       maxTokens: 500
     });
   }
 
-  async generateIntroduction(sessionId, isReturning = false) {
+  getLanguageName(code) {
+    const languages = {
+      'en': 'English',
+      'hi': 'Hindi',
+      'ta': 'Tamil',
+      'es': 'Spanish'
+    };
+    return languages[code] || 'English';
+  }
+
+  async generateIntroduction(sessionId, isReturning = false, language = 'en') {
     const profile = this.userPreferences.get(sessionId);
     
     if (isReturning && profile) {
-      return `Welcome back${profile.name ? `, ${profile.name}` : ''}! I remember we've discussed ${Array.from(profile.preferredTopics).join(' and ')} before. I'm Advocate Arjun, your AI legal assistant from FoxMandal. I'm here to help you with any legal questions. What's on your mind today?`;
+      const topics = Array.from(profile.preferredTopics).join(' and ');
+      const greetings = {
+        en: `Welcome back${profile.name ? `, ${profile.name}` : ''}! I remember we've discussed ${topics} before. I'm Advocate Arjun, your AI legal assistant from FoxMandal. I'm here to help you with any legal questions. What's on your mind today?`,
+        hi: `वापस आपका स्वागत है${profile.name ? `, ${profile.name}` : ''}! मुझे याद है हमने ${topics} पर चर्चा की थी। मैं एडवोकेट अर्जुन हूं, FoxMandal से आपका AI कानूनी सहायक। मैं किसी भी कानूनी प्रश्न में आपकी सहायता के लिए यहां हूं। आज आपके मन में क्या है?`,
+        ta: `மீண்டும் வரவேற்கிறோம்${profile.name ? `, ${profile.name}` : ''}! நாம் ${topics} பற்றி விவாதித்தோம் என்று எனக்கு நினைவிருக்கிறது। நான் அட்வகேட் அர்ஜுன், FoxMandal இலிருந்து உங்கள் AI சட்ட உதவியாளர். எந்தவொரு சட்ட கேள்விகளுக்கும் உதவ நான் இங்கே இருக்கிறேன். இன்று உங்கள் மனதில் என்ன இருக்கிறது?`,
+        es: `¡Bienvenido de nuevo${profile.name ? `, ${profile.name}` : ''}! Recuerdo que hemos discutido ${topics} antes. Soy el Abogado Arjun, su asistente legal de IA de FoxMandal. Estoy aquí para ayudarle con cualquier pregunta legal. ¿Qué tiene en mente hoy?`
+      };
+      return greetings[language] || greetings['en'];
     }
 
     return await this.sendToBackend({
-      message: "Introduce yourself warmly as Advocate Arjun, an intelligent legal AI assistant. Be personable, professional, and encourage questions.",
+      message: `Introduce yourself warmly as Advocate Arjun, an intelligent legal AI assistant. Be personable, professional, and encourage questions. Respond in ${this.getLanguageName(language)}.`,
       sessionId,
       aiMode: 'agentic',
-      systemPrompt: `You are Advocate Arjun from FoxMandal. Introduce yourself naturally:
+      systemPrompt: `You are Advocate Arjun from FoxMandal. Introduce yourself naturally in ${this.getLanguageName(language)}:
 - Warm, professional greeting
 - Explain your capabilities (contract review, legal advice, consultation scheduling)
 - Invite user to ask anything
@@ -216,12 +281,12 @@ CONVERSATION GUIDELINES:
 
   extractTopic(message) {
     const topicKeywords = {
-      'contract': ['contract', 'agreement', 'terms'],
-      'employment': ['employment', 'job', 'workplace', 'termination'],
-      'property': ['property', 'real estate', 'land', 'lease'],
-      'taxation': ['tax', 'gst', 'income tax'],
-      'corporate': ['company', 'business', 'corporate'],
-      'litigation': ['court', 'lawsuit', 'legal action']
+      'contract': ['contract', 'agreement', 'terms', 'अनुबंध', 'ஒப்பந்தம்', 'contrato'],
+      'employment': ['employment', 'job', 'workplace', 'termination', 'रोजगार', 'வேலை', 'empleo'],
+      'property': ['property', 'real estate', 'land', 'lease', 'संपत्ति', 'சொத்து', 'propiedad'],
+      'taxation': ['tax', 'gst', 'income tax', 'कर', 'வரி', 'impuesto'],
+      'corporate': ['company', 'business', 'corporate', 'कंपनी', 'நிறுவனம்', 'empresa'],
+      'litigation': ['court', 'lawsuit', 'legal action', 'अदालत', 'நீதிமன்றம்', 'tribunal']
     };
 
     const lowerMessage = message.toLowerCase();
@@ -249,6 +314,7 @@ export const sendMessage = async (message, sessionId = null, aiMode = 'agentic',
   }
 
   const session = sessionId || aiProcessor.generateSessionId(aiMode);
+  const detectedLang = detectLanguage(sanitizedMessage);
 
   try {
     const reEngagement = aiProcessor.checkReEngagement(session);
@@ -263,26 +329,35 @@ export const sendMessage = async (message, sessionId = null, aiMode = 'agentic',
       processingType: 'optimized_agentic',
       confidence: calculateConfidence(response),
       reEngagement: reEngagement.shouldGreet ? reEngagement : null,
-      contextRetained: true
+      contextRetained: true,
+      detectedLanguage: detectedLang
     };
 
   } catch (error) {
     console.error('AI processing error:', error);
     
+    const errorMessages = {
+      en: `I apologize for the technical difficulty. Let me try to help you anyway - could you rephrase your legal question?`,
+      hi: `तकनीकी कठिनाई के लिए मुझे खेद है। फिर भी मुझे आपकी मदद करने दें - क्या आप अपना कानूनी प्रश्न दोबारा बता सकते हैं?`,
+      ta: `தொழில்நுட்ப சிரமத்திற்கு மன்னிக்கவும். எப்படியும் உங்களுக்கு உதவ முயற்சிக்கிறேன் - உங்கள் சட்ட கேள்வியை மறுபடி கூற முடியுமா?`,
+      es: `Disculpe la dificultad técnica. Déjeme intentar ayudarle de todos modos - ¿podría reformular su pregunta legal?`
+    };
+    
     return {
-      reply: `I apologize for the technical difficulty. Let me try to help you anyway - could you rephrase your legal question?`,
+      reply: errorMessages[detectedLang] || errorMessages['en'],
       aiMode: 'agentic',
       sessionId: session,
       processingType: 'error',
-      confidence: 0.3
+      confidence: 0.3,
+      detectedLanguage: detectedLang
     };
   }
 };
 
-export const generateAIIntroduction = async (sessionId) => {
+export const generateAIIntroduction = async (sessionId, language = 'en') => {
   const profile = aiProcessor.userPreferences.get(sessionId);
   const isReturning = profile && profile.interactionCount > 0;
-  return await aiProcessor.generateIntroduction(sessionId, isReturning);
+  return await aiProcessor.generateIntroduction(sessionId, isReturning, language);
 };
 
 export const checkUserReEngagement = (sessionId) => {
@@ -309,16 +384,17 @@ export const getTTS = async (text) => {
         const setVoiceAndSpeak = () => {
           const voices = window.speechSynthesis.getVoices();
           
-          const maleVoice = voices.find(voice => 
-            voice.lang.startsWith('en') && (
-              voice.name.toLowerCase().includes('male') ||
-              voice.name.toLowerCase().includes('david') ||
-              !voice.name.toLowerCase().includes('female')
-            )
-          );
+          // Detect language for TTS voice selection
+          const detectedLang = detectLanguage(text);
+          const langCode = detectedLang === 'hi' ? 'hi-IN' : 
+                          detectedLang === 'ta' ? 'ta-IN' : 
+                          detectedLang === 'es' ? 'es-ES' : 'en-US';
           
-          if (maleVoice) {
-            utterance.voice = maleVoice;
+          const appropriateVoice = voices.find(voice => voice.lang.startsWith(langCode.split('-')[0]));
+          
+          if (appropriateVoice) {
+            utterance.voice = appropriateVoice;
+            utterance.lang = langCode;
           }
 
           utterance.rate = 0.85;
@@ -456,4 +532,4 @@ function calculateConfidence(response) {
   return Math.max(0.3, Math.min(0.90, confidence));
 }
 
-console.log('Complete AI System loaded successfully');
+console.log('Multilingual AI System loaded successfully with backend:', API_BASE_URL);
