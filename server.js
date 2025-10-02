@@ -1,4 +1,4 @@
-// Complete server.js - Replace your entire server.js file with this
+// Complete server.js - Your OLD Working Version with PDF Fix
 // Includes: Real AI modes, Full Security, Enhanced analytics
 
 import express from 'express';
@@ -14,8 +14,19 @@ import { v4 as uuidv4 } from 'uuid';
 import fileUpload from 'express-fileupload';
 import crypto from 'crypto';
 import mammoth from 'mammoth';
-import pdf from 'pdf-parse';
 import fs from 'fs/promises';
+
+// ✅ CRITICAL FIX: Dynamic PDF import to avoid test file error
+let pdf = null;
+(async () => {
+  try {
+    const pdfModule = await import('pdf-parse');
+    pdf = pdfModule.default;
+    console.log('✅ PDF parser loaded successfully');
+  } catch (err) {
+    console.error('⚠️ PDF parser failed to load:', err.message);
+  }
+})();
 
 config();
 
@@ -59,8 +70,8 @@ app.use((req, res, next) => {
 
 // Rate limiting
 const createRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: {
     error: 'Too many requests from this IP, please try again later.',
     retryAfter: 15 * 60
@@ -71,13 +82,9 @@ const createRateLimit = rateLimit({
 });
 
 app.use(createRateLimit);
-// In your server.js, update the CORS configuration:
-// CRITICAL FIX: Update only the CORS section in your server.js
-// Replace lines 62-75 with this:
 
 app.use(cors({
   origin: function(origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
     
     const allowedOrigins = [
@@ -89,7 +96,6 @@ app.use(cors({
       'https://legal-ai.vercel.app'
     ];
     
-    // Allow any vercel.app subdomain
     if (origin.endsWith('.vercel.app')) {
       return callback(null, true);
     }
@@ -98,23 +104,22 @@ app.use(cors({
       callback(null, true);
     } else {
       console.log('CORS blocked origin:', origin);
-      callback(null, true); // Allow anyway for now, log for debugging
+      callback(null, true);
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-ID', 'X-Client-Version'],
   exposedHeaders: ['Content-Length', 'X-Request-ID'],
-  maxAge: 86400, // 24 hours
+  maxAge: 86400,
   optionsSuccessStatus: 200
 }));
 
-// Add explicit OPTIONS handler
 app.options('*', cors());
  
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(fileUpload({
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+  limits: { fileSize: 50 * 1024 * 1024 },
   useTempFiles: true,
   tempFileDir: '/tmp/',
   abortOnLimit: true
@@ -133,7 +138,7 @@ class DataEncryption {
   encrypt(text) {
     try {
       const iv = crypto.randomBytes(16);
-      const cipher = crypto.createCipher(this.algorithm, this.key, iv);
+      const cipher = crypto.createCipheriv(this.algorithm, this.key, iv);
       
       let encrypted = cipher.update(text, 'utf8', 'hex');
       encrypted += cipher.final('hex');
@@ -154,7 +159,6 @@ class DataEncryption {
 
 const encryption = new DataEncryption();
 
-// Input validation and sanitization
 function validateAndSanitizeInput(input, maxLength = 2000) {
   if (!input || typeof input !== 'string') {
     return null;
@@ -187,22 +191,18 @@ function containsSuspiciousPatterns(message) {
   return suspiciousPatterns.some(pattern => pattern.test(message));
 }
 
-// Request validation middleware
 const validateRequest = (req, res, next) => {
   const { message, sessionId, aiMode } = req.body;
   
-  // Validate message
   if (!message || typeof message !== 'string' || message.length > 2000) {
     return res.status(400).json({ error: 'Invalid message' });
   }
   
-  // Sanitize message
   const sanitizedMessage = validateAndSanitizeInput(message);
   if (!sanitizedMessage) {
     return res.status(400).json({ error: 'Invalid message content' });
   }
   
-  // Check for suspicious patterns
   if (containsSuspiciousPatterns(sanitizedMessage)) {
     console.warn('Suspicious pattern detected:', { 
       message: sanitizedMessage.substring(0, 100), 
@@ -212,18 +212,15 @@ const validateRequest = (req, res, next) => {
     return res.status(400).json({ error: 'Message contains invalid content' });
   }
   
-  // Validate session ID format
   if (sessionId && !/^session_foxmandal_\w+_\d+_[a-z0-9]+$/.test(sessionId)) {
     return res.status(400).json({ error: 'Invalid session ID format' });
   }
   
-  // Validate AI mode
   const validModes = ['standard', 'agentic', 'agi', 'asi'];
   if (aiMode && !validModes.includes(aiMode)) {
     return res.status(400).json({ error: 'Invalid AI mode' });
   }
   
-  // Store sanitized message
   req.body.message = sanitizedMessage;
   next();
 };
@@ -233,7 +230,6 @@ const validateRequest = (req, res, next) => {
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const embeddingsClient = new OpenAIEmbeddings({ apiKey: process.env.OPENAI_API_KEY });
 
-// Pinecone setup
 const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
 
 let index;
@@ -298,7 +294,6 @@ const legalAnalytics = {
     const consultation = this.trackConsultation(sessionId);
     consultation.interactions++;
     
-    // Track AI mode usage
     const mode = interaction.aiMode || 'standard';
     consultation.aiModeUsage[mode] = (consultation.aiModeUsage[mode] || 0) + 1;
     
@@ -318,7 +313,6 @@ const legalAnalytics = {
       consultation.legalArea = interaction.legalArea;
     }
     
-    // Track security events
     if (interaction.securityFlag) {
       consultation.securityFlags.push({
         type: interaction.securityFlag,
@@ -384,6 +378,7 @@ const legalAnalytics = {
     return modeStats;
   }
 };
+
 // ===== DOCUMENT ANALYSIS ROUTE =====
 
 app.post('/analyze-document', validateRequest, async (req, res) => {
@@ -391,7 +386,6 @@ app.post('/analyze-document', validateRequest, async (req, res) => {
   const { sessionId, aiMode = 'standard', analysisType = 'comprehensive' } = req.body;
   const clientIP = (req.ip || req.connection.remoteAddress || '').replace(/\.\d+$/, '.xxx');
 
-  // Validate file upload
   if (!req.files || !req.files.document) {
     return res.status(400).json({ error: 'No document uploaded' });
   }
@@ -399,7 +393,6 @@ app.post('/analyze-document', validateRequest, async (req, res) => {
   const uploadedFile = req.files.document;
   const fileExtension = uploadedFile.name.split('.').pop().toLowerCase();
 
-  // Validate file type
   const allowedTypes = ['pdf', 'doc', 'docx', 'txt'];
   if (!allowedTypes.includes(fileExtension)) {
     return res.status(400).json({ 
@@ -407,7 +400,6 @@ app.post('/analyze-document', validateRequest, async (req, res) => {
     });
   }
 
-  // Validate file size (max 10MB)
   if (uploadedFile.size > 10 * 1024 * 1024) {
     return res.status(400).json({ 
       error: 'File too large. Maximum size is 10MB.' 
@@ -423,12 +415,18 @@ app.post('/analyze-document', validateRequest, async (req, res) => {
   });
 
   try {
-    // Extract text from document
     let documentText = '';
     let extractionMethod = '';
 
     switch (fileExtension) {
       case 'pdf':
+        // ✅ Check if PDF parser is loaded
+        if (!pdf) {
+          return res.status(503).json({ 
+            error: 'PDF parser is still initializing. Please try again in a moment.',
+            code: 'PDF_PARSER_LOADING'
+          });
+        }
         const pdfData = await pdf(uploadedFile.data);
         documentText = pdfData.text;
         extractionMethod = 'PDF Parser';
@@ -441,7 +439,6 @@ app.post('/analyze-document', validateRequest, async (req, res) => {
         break;
 
       case 'doc':
-        // For older .doc files, try mammoth (limited support)
         try {
           const docResult = await mammoth.extractRawText({ buffer: uploadedFile.data });
           documentText = docResult.value;
@@ -459,21 +456,17 @@ app.post('/analyze-document', validateRequest, async (req, res) => {
         break;
     }
 
-    // Validate extracted text
     if (!documentText || documentText.trim().length < 50) {
       return res.status(400).json({ 
         error: 'Document appears to be empty or unreadable. Please check the file.' 
       });
     }
 
-    // Sanitize and truncate if needed
-    documentText = documentText.substring(0, 15000); // Limit to ~15k chars for API
+    documentText = documentText.substring(0, 15000);
 
-    // Classify document type
     const documentType = classifyDocumentType(documentText);
     const legalArea = classifyLegalIntent(documentText);
 
-    // Track analytics
     legalAnalytics.trackLegalInteraction(sessionId, {
       type: 'document_upload',
       content: `${uploadedFile.name} (${fileExtension})`,
@@ -485,7 +478,6 @@ app.post('/analyze-document', validateRequest, async (req, res) => {
       documentSize: uploadedFile.size
     });
 
-    // Generate AI analysis based on mode
     const analysis = await generateDocumentAnalysis(
       documentText,
       documentType,
@@ -494,10 +486,9 @@ app.post('/analyze-document', validateRequest, async (req, res) => {
       analysisType
     );
 
-    // Track completion
     legalAnalytics.trackLegalInteraction(sessionId, {
       type: 'document_analysis_complete',
-      content: analysis.substring(0, 200),
+      content: analysis.content.substring(0, 200),
       legalArea,
       aiMode,
       sessionId,
@@ -514,7 +505,7 @@ app.post('/analyze-document', validateRequest, async (req, res) => {
       documentType,
       legalArea,
       textLength: documentText.length,
-      analysis,
+      analysis: analysis.content,
       aiMode,
       confidence: analysis.confidence || 0.8,
       processingTime: Date.now() - startTime,
@@ -580,7 +571,6 @@ async function generateDocumentAnalysis(documentText, documentType, legalArea, a
     ? documentText.substring(0, 2000) + '...[truncated]'
     : documentText;
 
-  // Build mode-specific analysis prompt
   let systemPrompt = '';
   let analysisRequest = '';
 
@@ -674,7 +664,7 @@ AUTONOMOUS RESEARCH PERFORMED:
       analysisRequest = `Perform autonomous step-by-step analysis on this ${documentType}:\n\n${documentSummary}`;
       break;
 
-    default: // standard
+    default:
       systemPrompt = `You are a legal document analyst at FoxMandal. Provide:
 
 DOCUMENT ANALYSIS:
@@ -712,8 +702,6 @@ Next Steps:
     });
 
     const analysis = response.choices[0].message.content;
-    
-    // Calculate confidence based on mode and content
     const confidence = calculateDocumentConfidence(analysis, aiMode, documentText.length);
 
     return {
@@ -738,17 +726,13 @@ function calculateDocumentConfidence(analysis, aiMode, documentLength) {
     'standard': 0.78
   }[aiMode] || 0.75;
 
-  // Adjust based on analysis quality
   if (analysis.includes('risk') || analysis.includes('probability')) confidence += 0.03;
   if (analysis.includes('recommendation') || analysis.includes('next steps')) confidence += 0.02;
   if (analysis.length > 800) confidence += 0.02;
-  if (documentLength < 500) confidence -= 0.05; // Short docs harder to analyze
+  if (documentLength < 500) confidence -= 0.05;
   
   return Math.max(0.65, Math.min(0.95, confidence));
 }
-
-// Export for use in other modules if needed
-export { classifyDocumentType, generateDocumentAnalysis };
 
 // ===== LEGAL INTENT CLASSIFICATION =====
 
@@ -870,7 +854,6 @@ CRITICAL REQUIREMENTS:
   }
 }
 
-// Mode-specific confidence calculation
 function calculateModeSpecificConfidence(reply, aiMode, knowledgeBase) {
   let baseConfidence = 0.7;
   
@@ -932,7 +915,8 @@ app.get('/health', (req, res) => {
       openai: !!process.env.OPENAI_API_KEY,
       pinecone: !!process.env.PINECONE_API_KEY,
       legalKnowledge: !!index,
-      encryption: !!process.env.ENCRYPTION_KEY
+      encryption: !!process.env.ENCRYPTION_KEY,
+      pdfParser: !!pdf
     },
     security: {
       rateLimit: 'enabled',
@@ -943,7 +927,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Enhanced secure /chat route with REAL AI modes
 app.post('/chat', validateRequest, async (req, res) => {
   const { message, sessionId, aiMode = 'standard', systemPrompt, temperature, maxTokens } = req.body;
   const startTime = Date.now();
@@ -1040,7 +1023,6 @@ app.post('/chat', validateRequest, async (req, res) => {
   }
 });
 
-// Enhanced secure lead capture
 app.post('/capture-lead', validateRequest, async (req, res) => {
   const { name, email, phone, legalArea, urgency, message, sessionId, aiMode } = req.body;
   const clientIP = (req.ip || req.connection.remoteAddress || '').replace(/\.\d+$/, '.xxx');
@@ -1049,7 +1031,6 @@ app.post('/capture-lead', validateRequest, async (req, res) => {
     return res.status(400).json({ error: 'Name and email are required' });
   }
   
-  // Additional validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     return res.status(400).json({ error: 'Invalid email format' });
@@ -1071,7 +1052,6 @@ app.post('/capture-lead', validateRequest, async (req, res) => {
       clientIP
     };
     
-    // Encrypt sensitive data before storage (in production)
     if (encryption) {
       const encryptedData = encryption.encrypt(JSON.stringify(sanitizedData));
       if (encryptedData) {
@@ -1121,7 +1101,6 @@ app.post('/capture-lead', validateRequest, async (req, res) => {
   }
 });
 
-// Enhanced analytics with security metrics
 app.get('/legal-analytics', (req, res) => {
   try {
     const today = legalAnalytics.dailyStats.get(new Date().toISOString().split('T')[0]);
@@ -1150,9 +1129,7 @@ app.get('/legal-analytics', (req, res) => {
   }
 });
 
-// Security monitoring endpoint (admin only)
 app.get('/security-status', (req, res) => {
-  // Basic security check - in production, add proper authentication
   const securityEvents = Array.from(legalAnalytics.consultations.values())
     .filter(consultation => consultation.securityFlags.length > 0)
     .length;
@@ -1166,7 +1143,6 @@ app.get('/security-status', (req, res) => {
   });
 });
 
-// TTS endpoint (disabled for security)
 app.post('/tts', (req, res) => {
   res.status(503).json({ 
     error: 'TTS service uses browser speech synthesis',
@@ -1175,7 +1151,7 @@ app.post('/tts', (req, res) => {
   });
 });
 
-// ===== LEGAL KNOWLEDGE SEEDING (Run once) =====
+// ===== LEGAL KNOWLEDGE SEEDING =====
 
 async function seedIndianLegalKnowledge() {
   if (!index) return;
@@ -1198,15 +1174,14 @@ async function seedIndianLegalKnowledge() {
       area: 'litigation',
       jurisdiction: 'india'
     }
-    // Add more knowledge entries as needed
   ];
   
   try {
     const records = [];
-    for (const [index, knowledge] of legalKnowledge.entries()) {
+    for (const [idx, knowledge] of legalKnowledge.entries()) {
       const embedding = await embeddingsClient.embedQuery(knowledge.content);
       records.push({
-        id: `legal_knowledge_${index}_${Date.now()}`,
+        id: `legal_knowledge_${idx}_${Date.now()}`,
         values: embedding,
         metadata: {
           content: knowledge.content,
@@ -1218,7 +1193,7 @@ async function seedIndianLegalKnowledge() {
       });
     }
     
-    if (records.length > 0)     if (records.length > 0) {
+    if (records.length > 0) {
       await index.upsert(records);
       console.log(`✅ Seeded ${records.length} Indian legal knowledge records`);
     }
@@ -1229,38 +1204,23 @@ async function seedIndianLegalKnowledge() {
 
 // ===== INITIALIZATION =====
 
-async function initializeLegalAI() {
-  await initializePinecone();
-  setTimeout(() => {
-    if (index) {
-      seedIndianLegalKnowledge();
-    }
-  }, 2000);
-}
-
-initializeLegalAI().catch(console.error);
-// ===== INITIALIZATION =====
 (async () => {
   try {
     await initializePinecone();
-    // Optional: Seed once (comment after first run)
-    // await seedIndianLegalKnowledge();
-
-    const PORT = process.env.PORT || 3000;
+    
+    const PORT = process.env.PORT || 3001;
     app.listen(PORT, () => {
-      console.log(`🚀 Foxmandal Secure Legal AI running on port ${PORT}`);
+      console.log('=================================');
+      console.log('🚀 Foxmandal Secure Legal AI');
+      console.log(`📡 Port: ${PORT}`);
+      console.log(`🔒 Security: Enhanced`);
+      console.log(`🤖 AI Modes: Standard, Agentic, AGI, ASI`);
+      console.log(`📄 PDF Parser: ${pdf ? 'Ready' : 'Loading...'}`);
+      console.log(`⏰ Started: ${new Date().toISOString()}`);
+      console.log('=================================');
     });
   } catch (err) {
-    console.error('Startup error:', err);
+    console.error('❌ Startup error:', err);
     process.exit(1);
   }
 })();
-
-
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`🛡️ Foxmandal Secure Legal AI running on port ${PORT}`);
-  console.log(`🔒 Security features: Rate limiting, Input validation, Encryption`);
-  console.log(`🤖 AI Modes: Standard, Agentic, AGI, ASI`);
-  console.log(`📍 Endpoints: /chat, /capture-lead, /legal-analytics, /security-status`);
-});
