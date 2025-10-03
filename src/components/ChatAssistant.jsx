@@ -1,382 +1,25 @@
-// FINAL ChatAssistant.jsx - Complete with All Features
-// Features: Fast AI, Re-engagement, Context Memory, Lead Capture, Quick Actions
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import styled, { keyframes } from "styled-components";
 import { useSpeechRecognition } from "react-speech-kit";
 import { sendMessage, getTTS, stopTTS, captureLead, generateAIIntroduction, checkUserReEngagement } from "../api/chatApi";
-import { v4 as uuidv4 } from "uuid";
 
-// Animations
-const pulse = keyframes`
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-`;
-
-const slideIn = keyframes`
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-`;
-
-const fadeIn = keyframes`
-  from { opacity: 0; }
-  to { opacity: 1; }
-`;
-
-const processingPulse = keyframes`
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
-`;
-
-const glowPulse = keyframes`
-  0%, 100% { box-shadow: 0 0 20px rgba(102, 126, 234, 0.3); }
-  50% { box-shadow: 0 0 40px rgba(102, 126, 234, 0.7); }
-`;
-
-// Styled Components
-const ChatBtn = styled.button`
-  position: fixed;
-  bottom: 2rem;
-  right: 2rem;
-  background: ${props => 
-    props.listening ? 'linear-gradient(45deg, #b87333, #92400e)' :
-    props.processing ? 'linear-gradient(45deg, #fbbf24, #f59e0b)' :
-    'linear-gradient(45deg, #1e40af, #1e3a8a)'
-  };
-  border: none;
-  border-radius: 50%;
-  width: 70px;
-  height: 70px;
-  color: white;
-  font-size: 1.8rem;
-  z-index: 1000;
-  cursor: pointer;
-  box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-  backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
-  animation: ${props => 
-    props.listening || props.processing ? pulse : 
-    props.hasNewMessage ? glowPulse :
-    'none'
-  } 1.5s infinite;
-  
-  @media (max-width: 768px) {
-    width: 60px;
-    height: 60px;
-    font-size: 1.5rem;
-    bottom: 1.5rem;
-    right: 1.5rem;
-  }
-  
-  &:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 12px 35px rgba(0,0,0,0.4);
-  }
-`;
-
-const ChatBox = styled.div`
-  position: fixed;
-  bottom: 10rem;
-  right: 2rem;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(30px);
-  padding: 0;
-  width: 450px;
-  max-width: calc(100vw - 4rem);
-  max-height: 600px;
-  border-radius: 20px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-  border: 1px solid rgba(30, 64, 175, 0.2);
-  z-index: 999;
-  animation: ${slideIn} 0.4s ease-out;
-  overflow: hidden;
-  
-  @media (max-width: 768px) {
-    right: 1rem;
-    left: 1rem;
-    width: auto;
-    max-width: none;
-    bottom: 8rem;
-  }
-`;
-
-const ChatHeader = styled.div`
-  background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
-  color: white;
-  padding: 1rem 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  
-  h3 {
-    margin: 0;
-    font-size: 1.1rem;
-    font-weight: 600;
-  }
-  
-  .status-info {
-    font-size: 0.8rem;
-    opacity: 0.9;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-  
-  .status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: ${props => 
-      props.processing ? '#fbbf24' :
-      props.listening ? '#b87333' : 
-      '#10b981'
-    };
-    animation: ${props => (props.listening || props.processing) ? pulse : 'none'} 1s infinite;
-  }
-  
-  .processing-text {
-    animation: ${processingPulse} 1.5s infinite;
-  }
-`;
-
-const MessagesContainer = styled.div`
-  padding: 1rem;
-  max-height: 400px;
-  overflow-y: auto;
-  
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-  
-  &::-webkit-scrollbar-track {
-    background: rgba(0,0,0,0.1);
-    border-radius: 3px;
-  }
-  
-  &::-webkit-scrollbar-thumb {
-    background: rgba(0,0,0,0.3);
-    border-radius: 3px;
-  }
-`;
-
-const Message = styled.div`
-  margin-bottom: 1rem;
-  animation: ${fadeIn} 0.3s ease;
-  
-  &:last-child {
-    margin-bottom: 0;
-  }
-  
-  .message-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.3rem;
-  }
-  
-  .sender {
-    font-weight: 600;
-    font-size: 0.85rem;
-    color: ${props => props.isUser ? '#1e40af' : '#b87333'};
-  }
-  
-  .timestamp {
-    font-size: 0.7rem;
-    color: #999;
-  }
-  
-  .re-engagement-badge {
-    font-size: 0.8rem;
-    margin-left: 0.3rem;
-  }
-  
-  .content {
-    background: ${props => props.isUser ? 
-      'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)' : 
-      'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)'
-    };
-    padding: 0.8rem 1rem;
-    border-radius: 15px;
-    font-size: 0.9rem;
-    line-height: 1.4;
-    color: #374151;
-    margin-left: ${props => props.isUser ? '2rem' : '0'};
-    margin-right: ${props => props.isUser ? '0' : '2rem'};
-    position: relative;
-    white-space: pre-line;
-    
-    &::before {
-      content: '';
-      position: absolute;
-      top: 10px;
-      ${props => props.isUser ? 'right: -8px' : 'left: -8px'};
-      width: 0;
-      height: 0;
-      border: 8px solid transparent;
-      border-${props => props.isUser ? 'left' : 'right'}-color: ${props => 
-        props.isUser ? '#bfdbfe' : '#fde68a'
-      };
-    }
-  }
-`;
-
-const TypingIndicator = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.8rem 1rem;
-  margin-bottom: 1rem;
-  font-style: italic;
-  color: #666;
-  font-size: 0.85rem;
-  
-  .dots {
-    display: flex;
-    gap: 3px;
-  }
-  
-  .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #b87333;
-    animation: ${pulse} 1.4s infinite;
-    
-    &:nth-child(1) { animation-delay: 0s; }
-    &:nth-child(2) { animation-delay: 0.2s; }
-    &:nth-child(3) { animation-delay: 0.4s; }
-  }
-`;
-
-const CloseButton = styled.button`
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  color: white;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  
-  &:hover {
-    background: rgba(255, 255, 255, 0.3);
-    transform: rotate(90deg);
-  }
-`;
-
-const LeadCaptureForm = styled.div`
-  background: rgba(248, 250, 252, 0.95);
-  border-top: 1px solid rgba(0,0,0,0.1);
-  padding: 1rem;
-  
-  .form-title {
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-    color: #374151;
-  }
-  
-  .form-row {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-  }
-  
-  input, textarea {
-    width: 100%;
-    padding: 0.5rem;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    
-    &:focus {
-      outline: none;
-      border-color: #3b82f6;
-    }
-  }
-  
-  .submit-btn {
-    background: linear-gradient(45deg, #1e40af, #1e3a8a);
-    color: white;
-    border: none;
-    padding: 0.6rem 1.2rem;
-    border-radius: 10px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    margin-top: 0.5rem;
-    width: 100%;
-    
-    &:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    }
-    
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-  }
-`;
-
-const QuickActions = styled.div`
-  padding: 1rem;
-  border-top: 1px solid rgba(0,0,0,0.1);
-  background: rgba(248, 250, 252, 0.5);
-  
-  .quick-title {
-    font-size: 0.85rem;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-    color: #374151;
-  }
-  
-  .quick-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-  
-  .quick-btn {
-    background: white;
-    border: 1px solid #d1d5db;
-    color: #374151;
-    padding: 0.4rem 0.8rem;
-    border-radius: 12px;
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    
-    &:hover {
-      background: #f3f4f6;
-      border-color: #1e40af;
-      color: #1e40af;
-    }
-  }
-`;
-
-// Main Component
 export default function ChatAssistant() {
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState([]);
-  const [sessionId] = useState(() => `session_foxmandal_agentic_${Date.now()}_${Math.random().toString(36).substring(2, 15).toLowerCase()}`);
+  const [sessionId] = useState(() => 
+    `session_foxmandal_agentic_${Date.now()}_${Math.random().toString(36).substring(2, 15).toLowerCase()}`
+  );
   const [isTyping, setIsTyping] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showLeadCapture, setShowLeadCapture] = useState(false);
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const [lastActivityTime, setLastActivityTime] = useState(Date.now());
-  const [leadData, setLeadData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    message: ''
-  });
+  const [leadData, setLeadData] = useState({ name: '', email: '', phone: '', message: '' });
   
   const messagesEndRef = useRef(null);
   const inactivityTimerRef = useRef(null);
+  const reEngagementShownRef = useRef(false);
+  
   const { listen, listening, stop } = useSpeechRecognition({ 
     onResult: handleUser 
   });
@@ -389,26 +32,35 @@ export default function ChatAssistant() {
       const now = Date.now();
       const inactiveMinutes = (now - lastActivityTime) / 60000;
       
-      if (inactiveMinutes >= 2.5 && msgs.length > 0 && !isTyping && !listening) {
+      // Only show re-engagement once per session opening
+      if (inactiveMinutes >= 2.5 && 
+          msgs.length > 0 && 
+          !isTyping && 
+          !listening && 
+          !reEngagementShownRef.current) {
         handleReEngagement();
+        reEngagementShownRef.current = true;
       }
     };
 
     inactivityTimerRef.current = setInterval(checkInactivity, 30000);
-
-    return () => {
-      if (inactivityTimerRef.current) {
-        clearInterval(inactivityTimerRef.current);
-      }
-    };
+    return () => clearInterval(inactivityTimerRef.current);
   }, [open, lastActivityTime, msgs.length, isTyping, listening]);
 
-  // Update activity time on user interaction
+  // Reset re-engagement flag when user interacts
   useEffect(() => {
     if (listening || isTyping) {
       setLastActivityTime(Date.now());
+      reEngagementShownRef.current = false;
     }
   }, [listening, isTyping]);
+
+  // Reset re-engagement when chat opens
+  useEffect(() => {
+    if (open) {
+      reEngagementShownRef.current = false;
+    }
+  }, [open]);
 
   useEffect(() => {
     scrollToBottom();
@@ -418,7 +70,6 @@ export default function ChatAssistant() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Re-engagement when user returns
   const handleReEngagement = async () => {
     const reEngagement = checkUserReEngagement(sessionId);
     
@@ -433,7 +84,7 @@ export default function ChatAssistant() {
         from: 'Advocate Arjun',
         text: greeting,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        id: uuidv4(),
+        id: Date.now(),
         isReEngagement: true
       };
       
@@ -450,8 +101,7 @@ export default function ChatAssistant() {
   const speakResponse = useCallback(async (text) => {
     setIsSpeaking(true);
     try {
-      const processedText = text.replace(/Adv\./g, 'Advocate');
-      await getTTS(processedText);
+      await getTTS(text.replace(/Adv\./g, 'Advocate'));
     } catch (err) {
       console.error("TTS error:", err);
     } finally {
@@ -464,6 +114,7 @@ export default function ChatAssistant() {
     
     setLastActivityTime(Date.now());
     setHasNewMessage(false);
+    reEngagementShownRef.current = false;
     
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
@@ -472,7 +123,7 @@ export default function ChatAssistant() {
         from: 'You', 
         text, 
         timestamp,
-        id: uuidv4()
+        id: Date.now()
       }]);
     }
     
@@ -480,12 +131,10 @@ export default function ChatAssistant() {
     setIsProcessing(true);
 
     try {
-      const contextData = {
+      const response = await sendMessage(text, sessionId, 'agentic', {
         legalArea: extractLegalArea(text),
         name: leadData.name || null
-      };
-      
-      const response = await sendMessage(text, sessionId, 'agentic', contextData);
+      });
       
       setIsTyping(false);
       setIsProcessing(false);
@@ -494,15 +143,13 @@ export default function ChatAssistant() {
         from: 'Advocate Arjun', 
         text: response.reply, 
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        id: uuidv4(),
-        contextRetained: response.contextRetained
+        id: Date.now()
       };
       
       setMsgs(prev => [...prev, aiMessage]);
 
       if (response.reply.toLowerCase().includes('consultation') || 
           text.toLowerCase().includes('lawyer') ||
-          text.toLowerCase().includes('legal advice') ||
           text.toLowerCase().includes('hire')) {
         setTimeout(() => setShowLeadCapture(true), 2000);
       }
@@ -519,7 +166,7 @@ export default function ChatAssistant() {
         from: 'Advocate Arjun', 
         text: errorMsg, 
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        id: uuidv4()
+        id: Date.now()
       }]);
       await speakResponse(errorMsg);
     }
@@ -547,17 +194,17 @@ export default function ChatAssistant() {
               from: 'Advocate Arjun',
               text: welcomeMsg,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              id: uuidv4(),
+              id: Date.now(),
               isIntroduction: true
             }]);
             speakResponse(welcomeMsg);
           } catch (error) {
-            const fallbackMsg = "Hello! I'm Advocate Arjun from FoxMandal. I can help you with any legal questions. How can I assist you today?";
+            const fallbackMsg = "Hello! I'm Advocate Arjun from FoxMandal. How can I assist you with your legal matters today?";
             setMsgs([{
               from: 'Advocate Arjun',
               text: fallbackMsg,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              id: uuidv4()
+              id: Date.now()
             }]);
             speakResponse(fallbackMsg);
           }
@@ -577,14 +224,14 @@ export default function ChatAssistant() {
   async function handleQuickAction(action) {
     setLastActivityTime(Date.now());
     
-    const quickQueries = {
+    const queries = {
       'contract': 'I need help reviewing a contract',
       'employment': 'I have questions about employment law',
       'property': 'I need legal advice about property matters',
       'consultation': 'I would like to schedule a legal consultation'
     };
     
-    await handleUser(quickQueries[action], true);
+    await handleUser(queries[action], true);
   }
 
   async function handleLeadSubmit() {
@@ -594,12 +241,12 @@ export default function ChatAssistant() {
       await captureLead(leadData, sessionId, 'agentic');
       setShowLeadCapture(false);
       
-      const successMsg = `Thank you${leadData.name ? ', ' + leadData.name : ''}! Our legal team will contact you within 24 hours for a consultation.`;
+      const successMsg = `Thank you${leadData.name ? ', ' + leadData.name : ''}! Our legal team will contact you within 24 hours.`;
       setMsgs(prev => [...prev, {
         from: 'System',
         text: successMsg,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        id: uuidv4()
+        id: Date.now()
       }]);
       speakResponse(successMsg);
       
@@ -636,125 +283,212 @@ export default function ChatAssistant() {
   return (
     <>
       {open && (
-        <ChatBox>
-          <ChatHeader 
-            listening={listening || isSpeaking} 
-            processing={isProcessing}
-          >
+        <div style={{
+          position: 'fixed',
+          bottom: '10rem',
+          right: '2rem',
+          background: 'rgba(255, 255, 255, 0.95)',
+          backdropFilter: 'blur(30px)',
+          width: '450px',
+          maxWidth: 'calc(100vw - 4rem)',
+          maxHeight: '600px',
+          borderRadius: '20px',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+          zIndex: 999,
+          overflow: 'hidden'
+        }}>
+          {/* Header */}
+          <div style={{
+            background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)',
+            color: 'white',
+            padding: '1rem 1.5rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
             <div>
-              <h3>Advocate Arjun - Smart AI</h3>
-              <div className="status-info">
-                <div className="status-dot"></div>
-                <span className={isProcessing ? 'processing-text' : ''}>
-                  {getStatusText()}
-                </span>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>
+                Advocate Arjun - Smart AI
+              </h3>
+              <div style={{ fontSize: '0.8rem', opacity: 0.9, marginTop: '0.2rem' }}>
+                {getStatusText()}
               </div>
             </div>
-            <CloseButton onClick={closeChat}>×</CloseButton>
-          </ChatHeader>
+            <button 
+              onClick={closeChat}
+              style={{
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: 'none',
+                color: 'white',
+                width: '30px',
+                height: '30px',
+                borderRadius: '50%',
+                cursor: 'pointer',
+                fontSize: '1rem'
+              }}
+            >
+              ×
+            </button>
+          </div>
           
-          <MessagesContainer>
+          {/* Messages */}
+          <div style={{
+            padding: '1rem',
+            maxHeight: '400px',
+            overflowY: 'auto'
+          }}>
             {msgs.map((msg) => (
-              <Message key={msg.id} isUser={msg.from === 'You'}>
-                <div className="message-header">
-                  <span className="sender">{msg.from}</span>
-                  <span className="timestamp">{msg.timestamp}</span>
+              <div key={msg.id} style={{ marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                  <span style={{ fontWeight: '600', fontSize: '0.85rem', color: msg.from === 'You' ? '#1e40af' : '#b87333' }}>
+                    {msg.from}
+                  </span>
+                  <span style={{ fontSize: '0.7rem', color: '#999' }}>
+                    {msg.timestamp}
+                  </span>
                   {msg.isReEngagement && (
-                    <span className="re-engagement-badge">👋</span>
+                    <span style={{ fontSize: '0.8rem' }}>👋</span>
                   )}
                 </div>
-                <div className="content">{msg.text}</div>
-              </Message>
+                <div style={{
+                  background: msg.from === 'You' ? 
+                    'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)' : 
+                    'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                  padding: '0.8rem 1rem',
+                  borderRadius: '15px',
+                  fontSize: '0.9rem',
+                  lineHeight: '1.4',
+                  marginLeft: msg.from === 'You' ? '2rem' : '0',
+                  marginRight: msg.from === 'You' ? '0' : '2rem'
+                }}>
+                  {msg.text}
+                </div>
+              </div>
             ))}
             
             {isTyping && (
-              <TypingIndicator>
-                <span>Advocate Arjun is analyzing...</span>
-                <div className="dots">
-                  <div className="dot"></div>
-                  <div className="dot"></div>
-                  <div className="dot"></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.8rem 1rem' }}>
+                <span style={{ fontSize: '0.85rem', color: '#666' }}>Advocate Arjun is analyzing...</span>
+                <div style={{ display: 'flex', gap: '3px' }}>
+                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#b87333', animation: 'pulse 1.4s infinite' }} />
+                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#b87333', animation: 'pulse 1.4s 0.2s infinite' }} />
+                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#b87333', animation: 'pulse 1.4s 0.4s infinite' }} />
                 </div>
-              </TypingIndicator>
+              </div>
             )}
             
             <div ref={messagesEndRef} />
-          </MessagesContainer>
+          </div>
           
+          {/* Lead Capture */}
           {showLeadCapture && (
-            <LeadCaptureForm>
-              <div className="form-title">Schedule Legal Consultation</div>
-              <div className="form-row">
-                <input
-                  type="text"
-                  placeholder="Your Name"
-                  value={leadData.name}
-                  onChange={(e) => setLeadData({...leadData, name: e.target.value})}
-                />
-                <input
-                  type="email"
-                  placeholder="Email"
-                  value={leadData.email}
-                  onChange={(e) => setLeadData({...leadData, email: e.target.value})}
-                />
-              </div>
+            <div style={{ background: '#f8fafc', borderTop: '1px solid #e5e7eb', padding: '1rem' }}>
+              <div style={{ fontWeight: '600', marginBottom: '0.5rem' }}>Schedule Legal Consultation</div>
               <input
-                type="tel"
-                placeholder="Phone Number"
-                value={leadData.phone}
-                onChange={(e) => setLeadData({...leadData, phone: e.target.value})}
+                type="text"
+                placeholder="Your Name"
+                value={leadData.name}
+                onChange={(e) => setLeadData({...leadData, name: e.target.value})}
+                style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '8px', marginBottom: '0.5rem' }}
               />
-              <textarea
-                placeholder="Brief description of your legal matter"
-                value={leadData.message}
-                onChange={(e) => setLeadData({...leadData, message: e.target.value})}
-                rows="2"
+              <input
+                type="email"
+                placeholder="Email"
+                value={leadData.email}
+                onChange={(e) => setLeadData({...leadData, email: e.target.value})}
+                style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '8px', marginBottom: '0.5rem' }}
               />
               <button 
-                className="submit-btn"
                 onClick={handleLeadSubmit}
                 disabled={!leadData.name || !leadData.email}
+                style={{
+                  background: 'linear-gradient(45deg, #1e40af, #1e3a8a)',
+                  color: 'white',
+                  border: 'none',
+                  padding: '0.6rem 1.2rem',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  width: '100%',
+                  opacity: (!leadData.name || !leadData.email) ? 0.6 : 1
+                }}
               >
                 Schedule Consultation
               </button>
-            </LeadCaptureForm>
+            </div>
           )}
           
-          <QuickActions>
-            <div className="quick-title">Quick Actions</div>
-            <div className="quick-buttons">
-              <button className="quick-btn" onClick={() => handleQuickAction('contract')}>
-                Contract Review
-              </button>
-              <button className="quick-btn" onClick={() => handleQuickAction('employment')}>
-                Employment Law
-              </button>
-              <button className="quick-btn" onClick={() => handleQuickAction('property')}>
-                Property Matters
-              </button>
-              <button className="quick-btn" onClick={() => handleQuickAction('consultation')}>
-                Book Consultation
-              </button>
+          {/* Quick Actions */}
+          <div style={{ padding: '1rem', borderTop: '1px solid #e5e7eb', background: '#fafafa' }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.5rem' }}>Quick Actions</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+              {['contract', 'employment', 'property', 'consultation'].map(action => (
+                <button 
+                  key={action}
+                  onClick={() => handleQuickAction(action)}
+                  style={{
+                    background: 'white',
+                    border: '1px solid #d1d5db',
+                    padding: '0.4rem 0.8rem',
+                    borderRadius: '12px',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {action.charAt(0).toUpperCase() + action.slice(1)}
+                </button>
+              ))}
             </div>
-          </QuickActions>
-        </ChatBox>
+          </div>
+        </div>
       )}
       
-      <ChatBtn 
-        listening={listening || isSpeaking}
-        processing={isProcessing}
-        hasNewMessage={hasNewMessage}
+      {/* Floating Button */}
+      <button 
         onClick={toggleRecording}
-        title={
-          hasNewMessage ? "New message from AI" :
-          isProcessing ? "Processing..." :
-          listening ? "Stop listening" : 
-          isSpeaking ? "Speaking..." : 
-          "Start chat"
-        }
+        style={{
+          position: 'fixed',
+          bottom: '2rem',
+          right: '2rem',
+          background: listening ? 'linear-gradient(45deg, #b87333, #92400e)' :
+                     isProcessing ? 'linear-gradient(45deg, #fbbf24, #f59e0b)' :
+                     'linear-gradient(45deg, #1e40af, #1e3a8a)',
+          border: 'none',
+          borderRadius: '50%',
+          width: '70px',
+          height: '70px',
+          color: 'white',
+          fontSize: '1.8rem',
+          zIndex: 1000,
+          cursor: 'pointer',
+          boxShadow: hasNewMessage ? '0 0 0 0 rgba(102, 126, 234, 0.7)' : '0 8px 25px rgba(0,0,0,0.3)',
+          animation: (listening || isProcessing || hasNewMessage) ? 'pulse 1.5s infinite' : 'none'
+        }}
       >
         {getButtonIcon()}
-      </ChatBtn>
+      </button>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.1); opacity: 0.8; }
+        }
+        
+        @media (max-width: 768px) {
+          [style*="width: 450px"] {
+            width: calc(100vw - 2rem) !important;
+            right: 1rem !important;
+            bottom: 8rem !important;
+          }
+          
+          [style*="width: 70px"][style*="height: 70px"] {
+            width: 60px !important;
+            height: 60px !important;
+            bottom: 1.5rem !important;
+            right: 1.5rem !important;
+            fontSize: 1.5rem !important;
+          }
+        }
+      `}</style>
     </>
   );
 }
