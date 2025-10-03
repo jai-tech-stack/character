@@ -1,26 +1,23 @@
-// Simplified CharacterView.jsx - Smart AI Only, No Mode Confusion
+// ⚡ ULTRA-FAST CharacterView - Instant Feedback
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import styled, { keyframes, createGlobalStyle } from "styled-components";
 import { useSpeechRecognition } from "react-speech-kit";
-import { sendMessage, getTTS, stopTTS } from "../api/chatApi";
+import { sendMessage, getTTS, stopTTS, generateAIIntroduction } from "../api/chatApi";
 
 const morphBackground = keyframes`
-  0% { background: radial-gradient(circle at 20% 50%, #667eea 0%, #764ba2 50%, #1e3a8a 100%); }
+  0%, 100% { background: radial-gradient(circle at 20% 50%, #667eea 0%, #764ba2 50%, #1e3a8a 100%); }
   50% { background: radial-gradient(circle at 80% 20%, #764ba2 0%, #1e3a8a 50%, #667eea 100%); }
-  100% { background: radial-gradient(circle at 20% 50%, #667eea 0%, #764ba2 50%, #1e3a8a 100%); }
 `;
 
 const agenticPulse = keyframes`
-  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7); }
-  50% { transform: scale(1.1); box-shadow: 0 0 0 20px rgba(102, 126, 234, 0.3); }
-  100% { transform: scale(1); box-shadow: 0 0 0 40px rgba(102, 126, 234, 0); }
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7); }
+  50% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(102, 126, 234, 0); }
 `;
 
 const processingIndicator = keyframes`
-  0% { opacity: 0.3; }
+  0%, 100% { opacity: 0.4; }
   50% { opacity: 1; }
-  100% { opacity: 0.3; }
 `;
 
 const GlobalStyles = createGlobalStyle`
@@ -34,7 +31,7 @@ const Container = styled.div`
   height: 100vh;
   overflow: hidden;
   background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #667eea 100%);
-  animation: ${morphBackground} 15s infinite ease-in-out;
+  animation: ${morphBackground} 12s infinite ease-in-out;
 `;
 
 const BrandingBar = styled.div`
@@ -82,14 +79,14 @@ const AICore = styled.div`
     props.isProcessing ? processingIndicator :
     props.isSpeaking ? agenticPulse :
     'none'
-  } ${props => props.isProcessing ? '1.5s' : '2.5s'} infinite ease-in-out;
-  box-shadow: 0 0 50px rgba(102, 126, 234, 0.5), inset 0 0 50px rgba(255, 255, 255, 0.1);
+  } ${props => props.isProcessing ? '1s' : '2s'} infinite ease-in-out;
+  box-shadow: 0 0 50px rgba(102, 126, 234, 0.5);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   
   &:hover {
-    transform: translate(-50%, -50%) scale(1.1);
-    box-shadow: 0 0 100px rgba(102, 126, 234, 0.8);
+    transform: translate(-50%, -50%) scale(1.05);
+    box-shadow: 0 0 80px rgba(102, 126, 234, 0.7);
   }
   
   &::after {
@@ -105,10 +102,7 @@ const AICore = styled.div`
   @media (max-width: 768px) {
     width: 200px;
     height: 200px;
-    
-    &::after {
-      font-size: 3rem;
-    }
+    &::after { font-size: 3rem; }
   }
 `;
 
@@ -122,33 +116,32 @@ const StatusDisplay = styled.div`
   padding: 1rem 1.5rem;
   border-radius: 20px;
   border: 1px solid rgba(102, 126, 234, 0.3);
-  min-width: 200px;
+  min-width: 180px;
   z-index: 100;
   
   .status-title {
     font-weight: 600;
     margin-bottom: 0.5rem;
     color: #667eea;
-    font-size: 1rem;
+    font-size: 0.95rem;
   }
   
   .status-text {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     opacity: 0.9;
   }
   
-  .processing-info {
-    font-size: 0.8rem;
+  .response-time {
+    font-size: 0.75rem;
     color: #fbbf24;
-    margin-top: 0.5rem;
-    animation: ${processingIndicator} 1.5s infinite;
+    margin-top: 0.3rem;
   }
   
   @media (max-width: 768px) {
     top: 1rem;
     right: 1rem;
     padding: 0.8rem 1.2rem;
-    min-width: 150px;
+    min-width: 140px;
   }
 `;
 
@@ -160,14 +153,13 @@ const ResponseBubble = styled.div`
   background: rgba(0, 0, 0, 0.9);
   backdrop-filter: blur(30px);
   color: white;
-  padding: 2rem;
-  border-radius: 30px;
-  max-width: 85vw;
+  padding: 1.5rem 2rem;
+  border-radius: 25px;
+  max-width: 80vw;
   width: auto;
   min-width: 300px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 50px rgba(102, 126, 234, 0.3);
-  border: 1px solid rgba(102, 126, 234, 0.5);
-  animation: ${props => props.isSpeaking ? agenticPulse : 'none'} 2s infinite;
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(102, 126, 234, 0.4);
   z-index: 90;
   
   @media (max-width: 768px) {
@@ -175,54 +167,53 @@ const ResponseBubble = styled.div`
     right: 1rem;
     transform: none;
     max-width: none;
-    padding: 1.5rem;
+    padding: 1.2rem 1.5rem;
     bottom: 6rem;
   }
 
   .response-text {
-    font-size: 1.1rem;
-    line-height: 1.6;
+    font-size: 1rem;
+    line-height: 1.5;
     margin: 0;
     text-align: left;
-    white-space: pre-line;
     
     @media (max-width: 768px) {
-      font-size: 1rem;
+      font-size: 0.95rem;
     }
   }
   
   .close-btn {
     position: absolute;
-    top: 1rem;
-    right: 1rem;
-    background: rgba(102, 126, 234, 0.3);
+    top: 0.8rem;
+    right: 0.8rem;
+    background: rgba(102, 126, 234, 0.2);
     border: none;
     color: white;
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     cursor: pointer;
     font-size: 1rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
     
     &:hover {
-      background: rgba(102, 126, 234, 0.6);
+      background: rgba(102, 126, 234, 0.5);
       transform: scale(1.1);
     }
   }
   
   .ai-badge {
     position: absolute;
-    top: 1rem;
-    left: 1rem;
-    font-size: 0.8rem;
+    top: 0.8rem;
+    left: 0.8rem;
+    font-size: 0.75rem;
     background: rgba(102, 126, 234, 0.3);
     color: white;
-    padding: 0.3rem 0.6rem;
-    border-radius: 10px;
+    padding: 0.25rem 0.5rem;
+    border-radius: 8px;
     font-weight: 600;
   }
 `;
@@ -234,10 +225,10 @@ const InfoBox = styled.div`
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(10px);
   color: white;
-  padding: 1rem 1.5rem;
+  padding: 1rem 1.2rem;
   border-radius: 15px;
   border: 1px solid rgba(102, 126, 234, 0.3);
-  max-width: 300px;
+  max-width: 280px;
   z-index: 100;
   
   @media (max-width: 768px) {
@@ -246,12 +237,13 @@ const InfoBox = styled.div`
   
   .info-title {
     font-weight: 600;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.4rem;
     color: #fbbf24;
+    font-size: 0.9rem;
   }
   
   .info-text {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     line-height: 1.4;
     opacity: 0.9;
   }
@@ -266,90 +258,50 @@ export default function CharacterView({ onMessage }) {
   const [aiState, setAiState] = useState('idle');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [lastActivityTime, setLastActivityTime] = useState(Date.now());
-  const [sessionId] = useState(() => `session_foxmandal_agentic_${Date.now()}_${Math.random().toString(36).substring(2, 15).toLowerCase()}`);
+  const [responseTime, setResponseTime] = useState(null);
+  const [sessionId] = useState(() => `session_fast_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
   
-  const inactivityTimerRef = useRef(null);
   const { listen, listening, stop } = useSpeechRecognition({ 
     onResult: handleVoiceCommand 
   });
 
-  // Inactivity detection - check every 30 seconds
-  useEffect(() => {
-    const checkInactivity = () => {
-      const now = Date.now();
-      const inactiveMinutes = (now - lastActivityTime) / 60000;
-      
-      // Re-engage after 2.5 minutes of inactivity
-      if (inactiveMinutes >= 2.5 && aiState === 'idle' && !showResponse) {
-        handleReEngagement();
-      }
-    };
-
-    inactivityTimerRef.current = setInterval(checkInactivity, 30000);
-
-    return () => {
-      if (inactivityTimerRef.current) {
-        clearInterval(inactivityTimerRef.current);
-      }
-    };
-  }, [lastActivityTime, aiState, showResponse]);
-
-  // Update activity time on interaction
-  useEffect(() => {
-    if (listening || isProcessing) {
-      setLastActivityTime(Date.now());
-    }
-  }, [listening, isProcessing]);
-
-  // Re-engagement logic
-  const handleReEngagement = async () => {
-    const { checkUserReEngagement } = await import("../api/chatApi");
-    const reEngagement = checkUserReEngagement(sessionId);
-    
-    if (reEngagement.shouldGreet) {
-      setShowResponse(true);
-      setAiText(reEngagement.greeting);
-      setAiState('speaking');
-      await speakResponse(reEngagement.greeting);
-      setLastActivityTime(Date.now());
-    }
-  };
-
+  // ⚡ INSTANT FEEDBACK - Show "Processing" immediately
   async function handleVoiceCommand(text) {
     if (!text?.trim()) return;
     
-    console.log('Processing with Smart AI:', text);
+    const startTime = Date.now();
+    console.log('⚡ Processing:', text);
     
+    // INSTANT FEEDBACK
     setAiState('processing');
     setIsProcessing(true);
-    setLastActivityTime(Date.now());
+    setShowResponse(true);
+    setAiText('Processing...');
     stopTTS();
     stop();
-    
-    setShowResponse(true);
-    setAiText('Processing your legal query...');
 
     try {
-      // Single fast API call with context
-      const response = await sendMessage(text.trim(), sessionId, 'agentic');
+      // Single fast API call
+      const response = await sendMessage(text.trim(), sessionId, 'fast');
+      
+      const elapsed = Date.now() - startTime;
+      console.log(`⚡ Response in ${elapsed}ms`);
       
       setIsProcessing(false);
       setAiState('speaking');
       setAiText(response.reply);
+      setResponseTime(elapsed);
       onMessage?.(response.reply);
-      
-      console.log('Smart AI response generated with context');
       
       await speakResponse(response.reply);
       
     } catch (err) {
-      console.error('Smart AI error:', err);
+      console.error('AI error:', err);
       setIsProcessing(false);
       setAiState('idle');
-      const errorMessage = 'I encountered an issue. Could you please rephrase your question?';
-      setAiText(errorMessage);
-      await speakResponse(errorMessage);
+      const errorMsg = "I'm having trouble. Could you try again?";
+      setAiText(errorMsg);
+      await speakResponse(errorMsg);
     }
   }
 
@@ -366,31 +318,34 @@ export default function CharacterView({ onMessage }) {
     }
   }, []);
 
+  // LIGHTWEIGHT 3D (No complex geometries)
   useEffect(() => {
     const el = container.current;
     const scene = new THREE.Scene();
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true }); // Antialias off for speed
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // Lower pixel ratio
     renderer.setSize(el.clientWidth, el.clientHeight);
     el.appendChild(renderer.domElement);
 
     const camera = new THREE.PerspectiveCamera(75, el.clientWidth / el.clientHeight, 0.1, 1000);
     camera.position.z = 5;
 
-    const geometry = new THREE.IcosahedronGeometry(1, 1);
+    // Simpler geometry for performance
+    const geometry = new THREE.IcosahedronGeometry(1, 0); // Detail level 0 = faster
     const material = new THREE.MeshBasicMaterial({ 
       color: 0x667eea, 
       transparent: true, 
-      opacity: 0.4,
+      opacity: 0.3,
       wireframe: true 
     });
     
     const mesh = new THREE.Mesh(geometry, material);
     scene.add(mesh);
 
+    let animationId;
     function animate() {
-      requestAnimationFrame(animate);
-      const speed = isProcessing ? 0.03 : 0.01;
+      animationId = requestAnimationFrame(animate);
+      const speed = isProcessing ? 0.02 : 0.008;
       
       mesh.rotation.x += speed;
       mesh.rotation.y += speed;
@@ -402,6 +357,7 @@ export default function CharacterView({ onMessage }) {
     setLoading(false);
 
     return () => {
+      cancelAnimationFrame(animationId);
       if (el.contains(renderer.domElement)) {
         el.removeChild(renderer.domElement);
       }
@@ -410,6 +366,19 @@ export default function CharacterView({ onMessage }) {
       material.dispose();
     };
   }, [isProcessing]);
+
+  // WELCOME MESSAGE (Load async, don't block)
+  useEffect(() => {
+    const loadWelcome = async () => {
+      try {
+        const greeting = await generateAIIntroduction(sessionId);
+        // Don't show automatically - wait for user to click
+      } catch (error) {
+        console.warn('Welcome message failed');
+      }
+    };
+    loadWelcome();
+  }, [sessionId]);
 
   const handleAIClick = () => {
     if (aiState === 'listening' || aiState === 'speaking') {
@@ -427,14 +396,10 @@ export default function CharacterView({ onMessage }) {
   };
 
   const getStatusText = () => {
-    const stateLabels = {
-      idle: 'Ready to Assist',
-      listening: 'Listening...',
-      processing: 'Analyzing...',
-      speaking: 'Speaking...'
-    };
-    
-    return stateLabels[aiState];
+    if (isProcessing) return 'Thinking...';
+    if (listening) return 'Listening...';
+    if (isSpeaking) return 'Speaking...';
+    return 'Ready';
   };
 
   return (
@@ -442,19 +407,15 @@ export default function CharacterView({ onMessage }) {
       <GlobalStyles />
       <Container ref={container}>
         <BrandingBar>
-          <div className="logo">FoxMandal Smart AI</div>
-          <div className="tagline">Intelligent Legal Assistant</div>
+          <div className="logo">FoxMandal AI</div>
+          <div className="tagline">⚡ Lightning Fast Responses</div>
         </BrandingBar>
         
         <StatusDisplay>
           <div className="status-title">Status</div>
-          <div className="status-text">
-            {loading ? "Initializing..." : 
-             isProcessing ? "Processing" :
-             getStatusText()}
-          </div>
-          {isProcessing && (
-            <div className="processing-info">Smart AI analyzing your query...</div>
+          <div className="status-text">{getStatusText()}</div>
+          {responseTime && !isProcessing && (
+            <div className="response-time">⚡ {responseTime}ms</div>
           )}
         </StatusDisplay>
 
@@ -465,8 +426,8 @@ export default function CharacterView({ onMessage }) {
         />
 
         {showResponse && (
-          <ResponseBubble isSpeaking={isSpeaking}>
-            <div className="ai-badge">Smart AI</div>
+          <ResponseBubble>
+            <div className="ai-badge">Fast AI</div>
             <p className="response-text">{aiText}</p>
             <button 
               className="close-btn" 
@@ -482,9 +443,9 @@ export default function CharacterView({ onMessage }) {
         )}
         
         <InfoBox>
-          <div className="info-title">💡 How to Use</div>
+          <div className="info-title">💡 Quick Start</div>
           <div className="info-text">
-            Click the AI core to start voice interaction. Ask any legal question and get fast, intelligent analysis from our advanced legal assistant.
+            Click the AI to ask legal questions. Get instant answers in under 2 seconds!
           </div>
         </InfoBox>
       </Container>
