@@ -1,17 +1,17 @@
 // ⚡ ULTIMATE FoxMandal Legal AI - ALL FEATURES
 // Conversation History + Multi-Language + Analytics + Document Analysis
-
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { config } from 'dotenv';
+import { Pinecone } from '@pinecone-database/pinecone';
 import { OpenAI } from 'openai';
+import { OpenAIEmbeddings } from '@langchain/openai';
 import fileUpload from 'express-fileupload';
-import pdfParse from 'pdf-parse';
-import mammoth from 'mammoth';
-import fs from 'fs/promises';
+import crypto from 'crypto';
+
 
 config();
 
