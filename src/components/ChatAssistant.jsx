@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import styled, { keyframes } from "styled-components";
 import { useSpeechRecognition } from "react-speech-kit";
-import { sendMessage, getTTS, stopTTS, captureLead, generateAIIntroduction, checkUserReEngagement } from "../api/chatApi";
+import { sendMessage, getTTS, stopTTS, captureLead, generateAIIntroduction } from "../api/chatApi";
 import { v4 as uuidv4 } from "uuid";
 
 // Animations
