@@ -1,5 +1,6 @@
+// 🚀 ULTIMATE Document Analysis Component
 import React, { useState } from 'react';
-import { Upload, FileText, AlertCircle, CheckCircle, Loader, X, FileCheck } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle, Loader, X, FileCheck, Send, Sparkles } from 'lucide-react';
 import { analyzeDocument } from '../api/chatApi';
 
 const DocumentAnalysisComponent = ({ sessionId, onAnalysisComplete }) => {
@@ -8,6 +9,8 @@ const DocumentAnalysisComponent = ({ sessionId, onAnalysisComplete }) => {
   const [analysis, setAnalysis] = useState(null);
   const [error, setError] = useState(null);
   const [dragActive, setDragActive] = useState(false);
+  const [customQuery, setCustomQuery] = useState('');
+  const [showQueryInput, setShowQueryInput] = useState(false);
 
   const handleDrag = (e) => {
     e.preventDefault();
@@ -66,7 +69,7 @@ const DocumentAnalysisComponent = ({ sessionId, onAnalysisComplete }) => {
     setError(null);
 
     try {
-      const result = await analyzeDocument(selectedFile, sessionId, 'agentic');
+      const result = await analyzeDocument(selectedFile, sessionId, customQuery || null);
       setAnalysis(result);
       
       if (onAnalysisComplete) {
@@ -85,6 +88,8 @@ const DocumentAnalysisComponent = ({ sessionId, onAnalysisComplete }) => {
     setSelectedFile(null);
     setAnalysis(null);
     setError(null);
+    setCustomQuery('');
+    setShowQueryInput(false);
   };
 
   const formatFileSize = (bytes) => {
@@ -93,63 +98,83 @@ const DocumentAnalysisComponent = ({ sessionId, onAnalysisComplete }) => {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    alert('Analysis copied to clipboard!');
+  };
+
+  const quickQuestions = [
+    "What are the key terms and conditions?",
+    "Are there any potential risks?",
+    "What are my obligations under this document?",
+    "Is this contract enforceable?",
+    "What happens if I breach this agreement?"
+  ];
+
   return (
     <div className="w-full max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
+      {/* Header */}
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2 mb-2">
-          <FileCheck className="w-7 h-7 text-blue-600" />
-          Smart AI Document Analysis
+        <h2 className="text-3xl font-bold text-gray-800 flex items-center gap-2 mb-3">
+          <FileCheck className="w-8 h-8 text-blue-600" />
+          AI-Powered Document Analysis
         </h2>
-        <p className="text-gray-600">Upload contracts, agreements, or legal documents for intelligent AI-powered analysis</p>
+        <p className="text-gray-600 text-lg">Upload legal documents for instant intelligent analysis with context-aware insights</p>
       </div>
 
-      {/* Smart AI Badge */}
-      <div className="mb-4">
-        <span className="inline-block px-3 py-1 rounded-full text-sm font-semibold border bg-blue-100 text-blue-800 border-blue-300">
-          Smart AI Analysis
+      {/* Feature Badges */}
+      <div className="mb-6 flex flex-wrap gap-2">
+        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-800 border border-blue-300">
+          <Sparkles className="w-4 h-4" /> Smart AI Analysis
+        </span>
+        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800 border border-green-300">
+          ✓ Multi-Language Support
+        </span>
+        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold bg-purple-100 text-purple-800 border border-purple-300">
+          ⚡ Under 10 seconds
         </span>
       </div>
 
       {/* Upload Area */}
       {!selectedFile && !analysis && (
         <div
-          className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+          className={`border-2 border-dashed rounded-xl p-10 text-center transition-all duration-300 ${
             dragActive 
-              ? 'border-blue-500 bg-blue-50' 
-              : 'border-gray-300 hover:border-blue-400 bg-gray-50'
+              ? 'border-blue-500 bg-blue-50 scale-105' 
+              : 'border-gray-300 hover:border-blue-400 bg-gradient-to-br from-gray-50 to-gray-100'
           }`}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
           onDrop={handleDrop}
         >
-          <Upload className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-          <p className="text-lg font-semibold text-gray-700 mb-2">
+          <Upload className="w-20 h-20 mx-auto mb-4 text-blue-500" />
+          <p className="text-xl font-semibold text-gray-700 mb-2">
             Drag & drop your document here
           </p>
-          <p className="text-sm text-gray-500 mb-4">
-            or click to browse (PDF, DOC, DOCX, TXT • Max 10MB)
+          <p className="text-sm text-gray-500 mb-6">
+            Supports PDF, DOC, DOCX, TXT • Maximum 10MB
           </p>
-          <label className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 transition-colors">
+          <label className="inline-block px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl cursor-pointer hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl font-semibold">
             <input
               type="file"
               className="hidden"
               accept=".pdf,.doc,.docx,.txt"
               onChange={handleFileInput}
             />
-            Select File
+            📂 Browse Files
           </label>
         </div>
       )}
 
       {/* Selected File Display */}
       {selectedFile && !analysis && (
-        <div className="border border-gray-300 rounded-lg p-6 bg-gray-50">
+        <div className="border border-gray-300 rounded-xl p-6 bg-gradient-to-br from-white to-gray-50 shadow-md">
           <div className="flex items-start justify-between mb-4">
-            <div className="flex items-start gap-3">
-              <FileText className="w-8 h-8 text-blue-600 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="font-semibold text-gray-800 text-lg">{selectedFile.name}</h3>
+            <div className="flex items-start gap-3 flex-1">
+              <FileText className="w-10 h-10 text-blue-600 flex-shrink-0 mt-1" />
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-800 text-lg mb-1">{selectedFile.name}</h3>
                 <p className="text-sm text-gray-600">
                   {formatFileSize(selectedFile.size)} • {selectedFile.type.split('/').pop().toUpperCase()}
                 </p>
@@ -157,31 +182,83 @@ const DocumentAnalysisComponent = ({ sessionId, onAnalysisComplete }) => {
             </div>
             <button
               onClick={clearFile}
-              className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+              className="p-2 hover:bg-red-100 rounded-full transition-colors"
               disabled={uploading}
             >
-              <X className="w-5 h-5 text-gray-600" />
+              <X className="w-5 h-5 text-red-600" />
             </button>
           </div>
 
+          {/* Custom Query Input */}
+          {showQueryInput ? (
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Ask a specific question about this document:
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={customQuery}
+                  onChange={(e) => setCustomQuery(e.target.value)}
+                  placeholder="e.g., What are the termination clauses?"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <button
+                  onClick={() => {
+                    setShowQueryInput(false);
+                    setCustomQuery('');
+                  }}
+                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mb-4">
+              <p className="text-sm font-semibold text-gray-700 mb-2">Quick Questions:</p>
+              <div className="flex flex-wrap gap-2">
+                {quickQuestions.slice(0, 3).map((question, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      setCustomQuery(question);
+                      setShowQueryInput(true);
+                    }}
+                    className="text-xs px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg border border-blue-200 transition-colors"
+                  >
+                    {question}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setShowQueryInput(true)}
+                  className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-300 transition-colors"
+                >
+                  ✏️ Custom Question
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Analyze Button */}
           <button
             onClick={analyzeDoc}
             disabled={uploading}
-            className={`w-full py-3 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 ${
+            className={`w-full py-4 px-6 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-3 ${
               uploading
                 ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl'
             }`}
           >
             {uploading ? (
               <>
-                <Loader className="w-5 h-5 animate-spin" />
-                Analyzing with Smart AI...
+                <Loader className="w-6 h-6 animate-spin" />
+                Analyzing with AI...
               </>
             ) : (
               <>
-                <FileCheck className="w-5 h-5" />
-                Analyze Document
+                <Sparkles className="w-6 h-6" />
+                {customQuery ? 'Ask AI & Analyze' : 'Analyze Document'}
               </>
             )}
           </button>
@@ -190,68 +267,89 @@ const DocumentAnalysisComponent = ({ sessionId, onAnalysisComplete }) => {
 
       {/* Error Display */}
       {error && (
-        <div className="border border-red-300 bg-red-50 rounded-lg p-4 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+        <div className="border-2 border-red-300 bg-red-50 rounded-xl p-5 flex items-start gap-3 shadow-md">
+          <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
           <div>
-            <h4 className="font-semibold text-red-800 mb-1">Analysis Error</h4>
+            <h4 className="font-bold text-red-800 mb-1 text-lg">Analysis Error</h4>
             <p className="text-sm text-red-700">{error}</p>
+            <button
+              onClick={() => setError(null)}
+              className="mt-2 text-sm text-red-600 hover:text-red-800 font-semibold"
+            >
+              Dismiss
+            </button>
           </div>
         </div>
       )}
 
       {/* Analysis Results */}
       {analysis && (
-        <div className="border border-green-300 bg-green-50 rounded-lg p-6">
-          <div className="flex items-start gap-3 mb-4">
-            <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" />
+        <div className="border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 shadow-lg">
+          <div className="flex items-start gap-3 mb-5">
+            <CheckCircle className="w-8 h-8 text-green-600 flex-shrink-0 mt-1" />
             <div className="flex-1">
-              <h3 className="font-bold text-green-800 text-lg mb-1">Analysis Complete</h3>
+              <h3 className="font-bold text-green-800 text-2xl mb-2">Analysis Complete!</h3>
               <p className="text-sm text-green-700">
-                {analysis.fileName} • {analysis.documentType.replace(/_/g, ' ').toUpperCase()}
+                {analysis.fileName} • {analysis.legalArea?.replace(/_/g, ' ').toUpperCase()} • 
+                {analysis.language && ` Language: ${analysis.language.toUpperCase()} •`}
+                Processing time: {(analysis.processingTime / 1000).toFixed(1)}s
               </p>
             </div>
           </div>
 
           {/* Analysis Metadata */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 p-4 bg-white rounded border border-green-200">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5 p-5 bg-white rounded-xl border-2 border-green-200 shadow-sm">
             <div>
-              <p className="text-xs text-gray-600 mb-1">Confidence</p>
-              <p className="font-semibold text-gray-800">{(analysis.confidence * 100).toFixed(0)}%</p>
+              <p className="text-xs text-gray-600 mb-1 font-semibold">File Size</p>
+              <p className="font-bold text-gray-800 text-lg">{formatFileSize(analysis.fileSize)}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-600 mb-1">Legal Area</p>
-              <p className="font-semibold text-gray-800 capitalize">{analysis.legalArea.replace(/_/g, ' ')}</p>
+              <p className="text-xs text-gray-600 mb-1 font-semibold">Text Extracted</p>
+              <p className="font-bold text-gray-800 text-lg">{analysis.textLength?.toLocaleString()} chars</p>
             </div>
             <div>
-              <p className="text-xs text-gray-600 mb-1">AI Mode</p>
-              <p className="font-semibold text-gray-800">Smart AI</p>
+              <p className="text-xs text-gray-600 mb-1 font-semibold">Legal Area</p>
+              <p className="font-bold text-gray-800 text-lg capitalize">{analysis.legalArea?.replace(/_/g, ' ')}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-600 mb-1">Processing Time</p>
-              <p className="font-semibold text-gray-800">{(analysis.processingTime / 1000).toFixed(1)}s</p>
+              <p className="text-xs text-gray-600 mb-1 font-semibold">AI Model</p>
+              <p className="font-bold text-gray-800 text-lg">GPT-4o-mini</p>
             </div>
           </div>
 
           {/* Analysis Content */}
-          <div className="bg-white rounded border border-green-200 p-6">
-            <h4 className="font-bold text-gray-800 mb-3 text-lg">Analysis Report</h4>
-            <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-line">
-              {analysis.analysis.content || analysis.analysis}
+          <div className="bg-white rounded-xl border-2 border-green-200 p-6 shadow-sm mb-5">
+            <div className="flex justify-between items-center mb-4">
+              <h4 className="font-bold text-gray-800 text-xl flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-blue-600" />
+                AI Analysis Report
+              </h4>
+              <button
+                onClick={() => copyToClipboard(analysis.analysis)}
+                className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm font-semibold transition-colors"
+              >
+                📋 Copy
+              </button>
+            </div>
+            <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-line leading-relaxed">
+              {analysis.analysis}
             </div>
           </div>
 
           {/* Disclaimer */}
-          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
-            <strong>Disclaimer:</strong> {analysis.disclaimer}
+          <div className="mb-5 p-4 bg-yellow-50 border-2 border-yellow-200 rounded-xl">
+            <p className="text-sm text-yellow-900">
+              <strong className="font-bold">⚠️ Important Disclaimer:</strong> {analysis.disclaimer || 'This is AI-generated analysis. Always consult a licensed attorney for legal decisions.'}
+            </p>
           </div>
 
           {/* Action Buttons */}
-          <div className="mt-4 flex gap-3">
+          <div className="flex gap-3">
             <button
               onClick={clearFile}
-              className="flex-1 py-2 px-4 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-semibold transition-colors"
+              className="flex-1 py-3 px-5 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white rounded-xl font-bold transition-all shadow-md hover:shadow-lg"
             >
-              Analyze Another Document
+              📂 Analyze Another
             </button>
             <button
               onClick={() => {
@@ -263,27 +361,54 @@ const DocumentAnalysisComponent = ({ sessionId, onAnalysisComplete }) => {
                 a.click();
                 URL.revokeObjectURL(url);
               }}
-              className="py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+              className="py-3 px-5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl font-bold transition-all shadow-md hover:shadow-lg"
             >
-              Download Report
+              💾 Download JSON
             </button>
           </div>
         </div>
       )}
 
-      {/* Supported Document Types */}
-      <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-        <h4 className="font-semibold text-gray-700 mb-2 text-sm">Supported Document Types:</h4>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-gray-600">
-          <div>✓ Employment Agreements</div>
-          <div>✓ NDAs & Confidentiality</div>
-          <div>✓ Service Agreements</div>
-          <div>✓ Lease Agreements</div>
-          <div>✓ Partnership Deeds</div>
-          <div>✓ Legal Notices</div>
-          <div>✓ Court Documents</div>
-          <div>✓ Business Contracts</div>
-          <div>✓ MOUs & LOIs</div>
+      {/* Features Grid */}
+      <div className="mt-8 p-6 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200 shadow-sm">
+        <h4 className="font-bold text-gray-700 mb-4 text-lg">✨ What We Analyze:</h4>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm text-gray-700">
+          <div className="flex items-center gap-2">
+            <span className="text-green-600 font-bold">✓</span>
+            <span>Employment Contracts</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-green-600 font-bold">✓</span>
+            <span>NDAs & Confidentiality</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-green-600 font-bold">✓</span>
+            <span>Service Agreements</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-green-600 font-bold">✓</span>
+            <span>Lease Agreements</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-green-600 font-bold">✓</span>
+            <span>Partnership Deeds</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-green-600 font-bold">✓</span>
+            <span>Legal Notices</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-green-600 font-bold">✓</span>
+            <span>Court Documents</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-green-600 font-bold">✓</span>
+            <span>Business Contracts</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-green-600 font-bold">✓</span>
+            <span>MOUs & LOIs</span>
+          </div>
         </div>
       </div>
     </div>
