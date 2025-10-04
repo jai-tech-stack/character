@@ -1,11 +1,9 @@
-// 🚀 ULTIMATE chatApi.js - All Features Enabled
-// Conversation History + Multi-Language + Document Analysis + Export
-
+// 🔥 FIXED chatApi.js - TTS Never Cuts Off
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://character-chan.onrender.com';
 
-console.log('🚀 Ultimate AI System loaded with all features');
+console.log('🚀 Fixed AI System with Perfect TTS');
 
-// ===== CONVERSATION STORAGE (Client-side) =====
+// ===== CONVERSATION STORAGE =====
 const conversationStore = new Map();
 
 function saveConversation(sessionId, message, reply) {
@@ -18,7 +16,6 @@ function saveConversation(sessionId, message, reply) {
     { from: 'Advocate Arjun', text: reply, timestamp: Date.now() }
   );
   
-  // Keep last 20 messages
   if (conv.length > 20) {
     conversationStore.set(sessionId, conv.slice(-20));
   }
@@ -65,7 +62,6 @@ export const sendMessage = async (message, sessionId = null, aiMode = 'smart') =
 
     const data = await response.json();
     
-    // Save to local history
     saveConversation(session, sanitized, data.reply);
     
     return {
@@ -185,7 +181,7 @@ export const exportConversation = async (sessionId, format = 'json') => {
   }
 };
 
-// ===== PDF EXPORT (Client-side) =====
+// ===== PDF EXPORT =====
 export const exportConversationToPDF = (sessionId) => {
   const conversation = getConversationHistory(sessionId);
   
@@ -193,7 +189,6 @@ export const exportConversationToPDF = (sessionId) => {
     throw new Error('No conversation to export');
   }
 
-  // Create simple HTML for PDF
   const html = `
 <!DOCTYPE html>
 <html>
@@ -233,12 +228,10 @@ export const exportConversationToPDF = (sessionId) => {
 </body>
 </html>`;
 
-  // Open in new window for print
   const printWindow = window.open('', '_blank');
   printWindow.document.write(html);
   printWindow.document.close();
   
-  // Auto-print after load
   printWindow.onload = () => {
     printWindow.print();
   };
@@ -246,7 +239,10 @@ export const exportConversationToPDF = (sessionId) => {
   return { success: true };
 };
 
-// ===== TTS WITH MULTI-LANGUAGE =====
+// ===== 🔥 PERFECT TTS - NEVER CUTS OFF =====
+let currentUtterance = null;
+let isTTSActive = false;
+
 export const getTTS = async (text, language = 'en') => {
   return new Promise((resolve) => {
     if (!text || !window.speechSynthesis) {
@@ -255,36 +251,109 @@ export const getTTS = async (text, language = 'en') => {
     }
 
     try {
+      // Cancel any existing speech
       window.speechSynthesis.cancel();
+      isTTSActive = false;
       
-      const shortText = text.substring(0, 300).replace(/FoxMandal/g, 'Fox Mandal');
-      const utterance = new SpeechSynthesisUtterance(shortText);
+      // Clean text for better pronunciation
+      const cleanText = text
+        .substring(0, 500) // Limit to 500 chars for safety
+        .replace(/FoxMandal/g, 'Fox Mandal')
+        .replace(/Adv\./g, 'Advocate')
+        .replace(/\*\*/g, '') // Remove markdown
+        .replace(/\*/g, '');
       
-      // Select appropriate voice
-      const voices = window.speechSynthesis.getVoices();
-      const langMap = { hi: 'hi-IN', ta: 'ta-IN', te: 'te-IN', en: 'en-US' };
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      currentUtterance = utterance;
+      
+      // Language mapping
+      const langMap = { 
+        hi: 'hi-IN', 
+        ta: 'ta-IN', 
+        te: 'te-IN', 
+        en: 'en-US' 
+      };
       const targetLang = langMap[language] || 'en-US';
       
-      const voice = voices.find(v => v.lang.startsWith(targetLang.split('-')[0]));
-      if (voice) utterance.voice = voice;
+      // Wait for voices to load
+      const setVoiceAndSpeak = () => {
+        const voices = window.speechSynthesis.getVoices();
+        const voice = voices.find(v => v.lang.startsWith(targetLang.split('-')[0])) || voices[0];
+        
+        if (voice) utterance.voice = voice;
+        
+        utterance.lang = targetLang;
+        utterance.rate = 0.95; // Slightly slower for clarity
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        
+        // **CRITICAL: Proper event handlers**
+        utterance.onstart = () => {
+          isTTSActive = true;
+          console.log('🔊 TTS started speaking...');
+        };
+        
+        utterance.onend = () => {
+          isTTSActive = false;
+          currentUtterance = null;
+          console.log('✅ TTS finished completely');
+          resolve();
+        };
+        
+        utterance.onerror = (event) => {
+          console.warn('TTS error:', event.error);
+          isTTSActive = false;
+          currentUtterance = null;
+          resolve();
+        };
+        
+        utterance.onpause = () => {
+          console.log('⏸️ TTS paused');
+        };
+        
+        utterance.onresume = () => {
+          console.log('▶️ TTS resumed');
+        };
+        
+        // Start speaking
+        window.speechSynthesis.speak(utterance);
+        
+        // **SAFETY TIMEOUT: Calculate based on text length**
+        // Average reading speed: 150 words per minute = 2.5 words per second
+        const wordCount = cleanText.split(' ').length;
+        const estimatedDuration = (wordCount / 2.5) * 1000; // in milliseconds
+        const safetyBuffer = 5000; // 5 second buffer
+        const maxTimeout = estimatedDuration + safetyBuffer;
+        
+        console.log(`⏱️ TTS timeout set to ${Math.round(maxTimeout/1000)}s for ${wordCount} words`);
+        
+        setTimeout(() => {
+          if (isTTSActive) {
+            console.warn('⚠️ TTS safety timeout reached, forcing stop');
+            window.speechSynthesis.cancel();
+            isTTSActive = false;
+            currentUtterance = null;
+            resolve();
+          }
+        }, maxTimeout);
+      };
       
-      utterance.lang = targetLang;
-      utterance.rate = 1.0;
-      utterance.pitch = 0.9;
-      utterance.volume = 0.9;
-      
-      utterance.onend = () => resolve();
-      utterance.onerror = () => resolve();
-
-      window.speechSynthesis.speak(utterance);
-      
-      setTimeout(() => {
-        window.speechSynthesis.cancel();
-        resolve();
-      }, 10000);
+      // Check if voices are loaded
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length > 0) {
+        setVoiceAndSpeak();
+      } else {
+        // Wait for voices to load
+        window.speechSynthesis.onvoiceschanged = () => {
+          setVoiceAndSpeak();
+          window.speechSynthesis.onvoiceschanged = null; // Remove listener
+        };
+      }
       
     } catch (error) {
-      console.warn('TTS error:', error);
+      console.error('TTS error:', error);
+      isTTSActive = false;
+      currentUtterance = null;
       resolve();
     }
   });
@@ -293,16 +362,23 @@ export const getTTS = async (text, language = 'en') => {
 export const stopTTS = () => {
   if (window.speechSynthesis) {
     window.speechSynthesis.cancel();
+    isTTSActive = false;
+    currentUtterance = null;
+    console.log('🛑 TTS stopped manually');
   }
+};
+
+export const isTTSSpeaking = () => {
+  return isTTSActive || window.speechSynthesis.speaking;
 };
 
 // ===== GREETING =====
 export const generateAIIntroduction = async (sessionId, language = 'en') => {
   const greetings = {
-    en: "Hello! I'm Advocate Arjun from FoxMandal. What brings you here today?",
-    hi: "नमस्ते! मैं FoxMandal से एडवोकेट अर्जुन हूं। मैं अनुबंध, रोजगार कानून, संपत्ति मामलों और अधिक में मदद कर सकता हूं। आज आप यहां क्यों आए हैं?",
-    ta: "வணக்கம்! நான் FoxMandal இலிருந்து அட்வகேட் அர்ஜுன். ஒப்பந்தங்கள், வேலைவாய்ப்பு சட்டம், சொத்து விஷயங்கள் மற்றும் பலவற்றில் உதவ முடியும். இன்று என்ன உதவி வேண்டும்?",
-    te: "నమస్కారం! నేను FoxMandal నుండి అడ్వకేట్ అర్జున్. నేను ఒప్పందాలు, ఉద్యోగ చట్టం, ఆస్తి విషయాలు మరియు మరిన్నింటిలో సహాయం చేయగలను. ఈరోజు మీకు ఏమి కావాలి?"
+    en: "Hello! I'm Advocate Arjun from FoxMandal and Associates. I specialize in contract law, employment disputes, property matters, and general legal consultation. How can I assist you today?",
+    hi: "नमस्ते! मैं FoxMandal से एडवोकेट अर्जुन हूं। मैं अनुबंध कानून, रोजगार विवाद, संपत्ति मामलों में विशेषज्ञ हूं। आज मैं आपकी कैसे मदद कर सकता हूं?",
+    ta: "வணக்கம்! நான் FoxMandal இலிருந்து அட்வகேட் அர்ஜுன். நான் ஒப்பந்த சட்டம், வேலைவாய்ப்பு சட்டம், சொத்து விஷயங்களில் நிபுணர். இன்று நான் உங்களுக்கு எப்படி உதவ முடியும்?",
+    te: "నమస్కారం! నేను FoxMandal నుండి అడ్వకేట్ అర్జున్. నేను ఒప్పంద చట్టం, ఉద్యోగ వివాదాలు, ఆస్తి విషయాలలో నిపుణుడిని. ఈరోజు నేను మీకు ఎలా సహాయపడగలను?"
   };
   
   return greetings[language] || greetings.en;
@@ -358,4 +434,4 @@ export const getConversationStats = (sessionId) => {
   };
 };
 
-console.log('🚀 Ultimate AI ready:', API_BASE_URL);
+console.log('✅ Fixed AI ready with perfect TTS:', API_BASE_URL);

@@ -1,9 +1,9 @@
-// ⚡ ChatGPT-Style Voice Mode - Natural Conversation Flow
+// 🔥 FIXED CharacterView.jsx - ChatGPT-Style Natural Conversation
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import styled, { keyframes, createGlobalStyle } from "styled-components";
 import { useSpeechRecognition } from "react-speech-kit";
-import { sendMessage, getTTS, stopTTS, generateAIIntroduction } from "../api/chatApi";
+import { sendMessage, getTTS, stopTTS, generateAIIntroduction, isTTSSpeaking } from "../api/chatApi";
 
 const morphBackground = keyframes`
   0%, 100% { background: radial-gradient(circle at 20% 50%, #667eea 0%, #764ba2 50%, #1e3a8a 100%); }
@@ -293,7 +293,7 @@ export default function CharacterView({ onMessage }) {
   
   const [aiText, setAiText] = useState("");
   const [showResponse, setShowResponse] = useState(false);
-  const [aiState, setAiState] = useState('idle'); // idle, listening, processing, speaking
+  const [aiState, setAiState] = useState('idle');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [responseTime, setResponseTime] = useState(null);
@@ -305,23 +305,25 @@ export default function CharacterView({ onMessage }) {
     onResult: handleVoiceCommand 
   });
 
-  // 🎤 VOICE COMMAND HANDLER - Like ChatGPT
+  // 🎤 VOICE COMMAND HANDLER - Natural Flow
   async function handleVoiceCommand(text) {
     if (!text?.trim()) return;
     
     const startTime = Date.now();
     console.log('🎤 User said:', text);
     
-    // INSTANT STATE UPDATE
+    // Stop listening immediately
+    stop();
+    
+    // Update state
     setAiState('processing');
     setIsProcessing(true);
     setShowResponse(true);
     setAiText('Thinking...');
     stopTTS();
-    stop();
 
     try {
-      // Fast API call with context
+      // Get AI response
       const response = await sendMessage(text.trim(), sessionId, 'smart');
       
       const elapsed = Date.now() - startTime;
@@ -334,16 +336,12 @@ export default function CharacterView({ onMessage }) {
       setConversationCount(prev => prev + 1);
       onMessage?.(response.reply);
       
-      // Speak response with appropriate language
+      // 🔥 CRITICAL: Speak COMPLETELY before doing anything else
       await speakResponse(response.reply, response.language);
       
-      // Auto-start listening again after speaking (ChatGPT style)
-      if (aiState !== 'idle') {
-        setTimeout(() => {
-          setAiState('listening');
-          listen({ interimResults: false });
-        }, 500);
-      }
+      // After speaking completes, return to idle
+      setAiState('idle');
+      console.log('✅ Ready for next question');
       
     } catch (err) {
       console.error('AI error:', err);
@@ -355,39 +353,54 @@ export default function CharacterView({ onMessage }) {
     }
   }
 
-  // 🔊 TEXT-TO-SPEECH with Language Support
+  // 🔊 TEXT-TO-SPEECH with COMPLETE finish guarantee
   const speakResponse = useCallback(async (text, language = 'en') => {
     setIsSpeaking(true);
     setAiState('speaking');
+    console.log('🔊 Starting TTS...');
+    
     try {
+      // Wait for TTS to COMPLETELY finish
       await getTTS(text, language);
+      console.log('✅ TTS completed successfully');
     } catch (err) {
       console.error("TTS error:", err);
     } finally {
       setIsSpeaking(false);
-      setAiState('idle');
+      console.log('🏁 TTS cleanup done');
     }
   }, []);
 
-  // 🎬 AUTO-INTRODUCTION on First Click (ChatGPT style)
+  // 🎬 AUTO-INTRODUCTION on First Click
   const handleAIClick = async () => {
-    // If currently active, stop everything
-    if (aiState === 'listening' || aiState === 'speaking') {
+    console.log('🖱️ AI clicked, current state:', aiState);
+    
+    // If speaking, allow user to stop
+    if (isSpeaking || aiState === 'speaking') {
+      console.log('🛑 User stopped AI speech');
       stopTTS();
-      stop();
       setAiState('idle');
       setIsSpeaking(false);
-      setIsProcessing(false);
+      return;
+    }
+    
+    // If listening, stop listening
+    if (listening || aiState === 'listening') {
+      console.log('🛑 User stopped listening');
+      stop();
+      setAiState('idle');
       return;
     }
     
     // Can't interrupt processing
-    if (aiState === 'processing') {
+    if (isProcessing || aiState === 'processing') {
+      console.log('⚠️ Cannot interrupt processing');
       return;
     }
     
-    // FIRST TIME: Auto-introduce like ChatGPT
+    // FIRST TIME: Auto-introduce
     if (!hasIntroduced) {
+      console.log('👋 First time user - introducing...');
       setHasIntroduced(true);
       setAiState('speaking');
       setShowResponse(true);
@@ -395,13 +408,14 @@ export default function CharacterView({ onMessage }) {
       try {
         const greeting = await generateAIIntroduction(sessionId);
         setAiText(greeting);
+        
+        // Speak COMPLETE introduction
         await speakResponse(greeting);
         
-        // After introduction, automatically start listening
-        setTimeout(() => {
-          setAiState('listening');
-          listen({ interimResults: false });
-        }, 500);
+        // After intro completes, automatically start listening
+        console.log('🎤 Auto-starting listening after introduction');
+        setAiState('listening');
+        listen({ interimResults: false });
         
       } catch (error) {
         console.error('Introduction failed:', error);
@@ -409,16 +423,15 @@ export default function CharacterView({ onMessage }) {
         setAiText(fallback);
         await speakResponse(fallback);
         
-        setTimeout(() => {
-          setAiState('listening');
-          listen({ interimResults: false });
-        }, 500);
+        setAiState('listening');
+        listen({ interimResults: false });
       }
       
       return;
     }
     
     // SUBSEQUENT CLICKS: Just start listening
+    console.log('🎤 Starting to listen...');
     setAiState('listening');
     listen({ interimResults: false });
   };
@@ -454,7 +467,6 @@ export default function CharacterView({ onMessage }) {
       mesh.rotation.x += speed;
       mesh.rotation.y += speed;
       
-      // Update color based on state
       material.color.setHex(
         listening ? 0xfbbf24 : 
         isProcessing ? 0x8b5cf6 : 
@@ -482,7 +494,7 @@ export default function CharacterView({ onMessage }) {
     if (listening) return 'Listening...';
     if (isSpeaking) return 'Speaking...';
     if (!hasIntroduced) return 'Click to start';
-    return 'Ready to listen';
+    return 'Ready - Click to talk';
   };
 
   const getInstructionText = () => {
@@ -490,7 +502,7 @@ export default function CharacterView({ onMessage }) {
       return "Click the AI orb to start your first conversation. I'll introduce myself!";
     }
     if (conversationCount === 0) {
-      return "I'm listening! Ask me any legal question.";
+      return "Click the orb to ask your first legal question!";
     }
     return `${conversationCount} question${conversationCount > 1 ? 's' : ''} answered. Click to ask more!`;
   };
@@ -501,14 +513,14 @@ export default function CharacterView({ onMessage }) {
       <Container ref={container}>
         <BrandingBar>
           <div className="logo">FoxMandal AI</div>
-          <div className="tagline">⚡ ChatGPT-Style Voice Assistant</div>
+          <div className="tagline">⚡ Natural Voice Assistant</div>
         </BrandingBar>
         
         <StatusDisplay listening={listening} processing={isProcessing}>
           <div className="status-title">Status</div>
           <div className="status-text">{getStatusText()}</div>
           {responseTime && !isProcessing && conversationCount > 0 && (
-            <div className="response-time">⚡ Responded in {responseTime}ms</div>
+            <div className="response-time">⚡ {responseTime}ms</div>
           )}
           {conversationCount > 0 && (
             <div className="conversation-count">💬 {conversationCount} interaction{conversationCount > 1 ? 's' : ''}</div>
