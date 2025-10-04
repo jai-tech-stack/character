@@ -1,4 +1,4 @@
-// 🔥 FIXED FoxMandal Legal AI - ALL FEATURES + CORS FIX
+// ⚡ ULTIMATE FoxMandal Legal AI - ALL FEATURES
 // Conversation History + Multi-Language + Analytics + Document Analysis
 import express from 'express';
 import cors from 'cors';
@@ -6,99 +6,26 @@ import bodyParser from 'body-parser';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { config } from 'dotenv';
+import { Pinecone } from '@pinecone-database/pinecone';
 import { OpenAI } from 'openai';
+import { OpenAIEmbeddings } from '@langchain/openai';
 import fileUpload from 'express-fileupload';
-import fs from 'fs/promises';
-import pdfParse from 'pdf-parse';
-import mammoth from 'mammoth';
+import crypto from 'crypto';
+
 
 config();
 
 const app = express();
 
-// ===== 🔥 CRITICAL: FIXED CORS CONFIGURATION =====
-const allowedOrigins = [
-  'https://character-kappa.vercel.app',
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'http://localhost:5174',
-  'https://character-kappa-git-main.vercel.app',
-  // Add any Vercel preview deployments
-  /https:\/\/character-kappa-.*\.vercel\.app$/
-];
-
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, curl)
-    if (!origin) return callback(null, true);
-    
-    // Check if origin is in allowed list or matches regex
-    const isAllowed = allowedOrigins.some(allowed => {
-      if (typeof allowed === 'string') {
-        return allowed === origin;
-      } else if (allowed instanceof RegExp) {
-        return allowed.test(origin);
-      }
-      return false;
-    });
-    
-    if (isAllowed) {
-      console.log('✅ CORS allowed:', origin);
-      return callback(null, true);
-    }
-    
-    console.warn('⚠️ CORS blocked:', origin);
-    const msg = 'CORS policy: This origin is not allowed';
-    return callback(new Error(msg), false);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-ID', 'Accept'],
-  exposedHeaders: ['X-Session-ID'],
-  maxAge: 86400, // 24 hours
-  optionsSuccessStatus: 200
-}));
-
-// Handle preflight requests explicitly
-app.options('*', cors());
-
 // ===== SECURITY =====
-app.use(helmet({ 
-  contentSecurityPolicy: false, 
-  crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
-
-app.use(rateLimit({ 
-  windowMs: 15 * 60 * 1000, 
-  max: 200, 
-  skip: (req) => req.path === '/health',
-  message: 'Too many requests, please try again later'
-}));
-
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 200, skip: (req) => req.path === '/health' }));
+app.use(cors({ origin: (origin, callback) => callback(null, true), credentials: true, methods: ['GET', 'POST', 'OPTIONS'] }));
 app.use(bodyParser.json({ limit: '5mb' }));
-app.use(bodyParser.urlencoded({ extended: true, limit: '5mb' }));
-
-app.use(fileUpload({ 
-  limits: { fileSize: 10 * 1024 * 1024 }, 
-  useTempFiles: true, 
-  tempFileDir: '/tmp/',
-  abortOnLimit: true,
-  responseOnLimit: 'File size exceeds 10MB limit'
-}));
-
-// ===== REQUEST LOGGING =====
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.headers.origin || 'none'}`);
-  next();
-});
+app.use(fileUpload({ limits: { fileSize: 10 * 1024 * 1024 }, useTempFiles: true, tempFileDir: '/tmp/' }));
 
 // ===== AI CLIENT =====
-const openai = new OpenAI({ 
-  apiKey: process.env.OPENAI_API_KEY, 
-  timeout: 15000, 
-  maxRetries: 2 
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 10000, maxRetries: 1 });
 
 // ===== CONVERSATION HISTORY (In-Memory) =====
 const conversationHistory = new Map();
@@ -259,7 +186,7 @@ LEGAL AREAS EXPERTISE: Contracts, Employment, Property, Tax, Corporate, Family, 
       model: 'gpt-4o-mini',
       messages,
       temperature: 0.4,
-      max_tokens: 300,
+      max_tokens: 200,
     });
 
     return response.choices[0].message.content;
@@ -282,7 +209,7 @@ async function extractDocumentText(filePath, mimeType) {
       const buffer = await fs.readFile(filePath);
       const data = await pdfParse(buffer);
       return data.text;
-    } else if (mimeType.includes('wordprocessingml') || mimeType.includes('msword')) {
+    } else if (mimeType.includes('wordprocessingml')) {
       const buffer = await fs.readFile(filePath);
       const result = await mammoth.extractRawText({ buffer });
       return result.value;
@@ -291,7 +218,6 @@ async function extractDocumentText(filePath, mimeType) {
     }
     throw new Error('Unsupported file type');
   } catch (error) {
-    console.error('Document extraction error:', error);
     throw new Error(`Failed to extract text: ${error.message}`);
   }
 }
@@ -302,10 +228,8 @@ app.get('/', (req, res) => {
   res.json({ 
     service: 'FoxMandal Ultimate AI', 
     status: 'online', 
-    version: '5.1.0',
-    features: ['Conversation History', 'Multi-Language', 'Document Analysis', 'Advanced Analytics'],
-    cors: 'enabled',
-    timestamp: new Date().toISOString()
+    version: '5.0.0',
+    features: ['Conversation History', 'Multi-Language', 'Document Analysis', 'Advanced Analytics']
   });
 });
 
@@ -313,10 +237,8 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy', 
     openai: !!process.env.OPENAI_API_KEY,
-    uptime: Math.round(process.uptime()),
-    stats: analytics.getStats(),
-    cors: 'enabled',
-    timestamp: new Date().toISOString()
+    uptime: process.uptime(),
+    stats: analytics.getStats()
   });
 });
 
@@ -324,12 +246,8 @@ app.get('/health', (req, res) => {
 app.post('/chat', async (req, res) => {
   const { message, sessionId } = req.body;
   
-  if (!message || !sessionId) {
-    return res.status(400).json({ error: 'Message and sessionId required' });
-  }
-  
-  if (message.length > 500) {
-    return res.status(400).json({ error: 'Message too long (max 500 characters)' });
+  if (!message || !sessionId || message.length > 500) {
+    return res.status(400).json({ error: 'Invalid request' });
   }
   
   const startTime = Date.now();
@@ -356,16 +274,14 @@ app.post('/chat', async (req, res) => {
       language,
       legalArea,
       responseTime,
-      conversationCount: getHistory(sessionId).length / 2,
-      sessionId
+      conversationCount: getHistory(sessionId).length / 2
     });
     
   } catch (error) {
     console.error('Chat error:', error.message);
     res.status(500).json({ 
       error: 'Processing failed',
-      reply: "I'm having difficulty. Please try again.",
-      sessionId
+      reply: "I'm having difficulty. Please try again."
     });
   }
 });
@@ -407,7 +323,7 @@ app.post('/analyze-document', async (req, res) => {
     const processingTime = Date.now() - startTime;
     
     // Cleanup
-    try { await fs.unlink(file.tempFilePath); } catch (e) { console.warn('Temp file cleanup failed:', e.message); }
+    try { await fs.unlink(file.tempFilePath); } catch (e) {}
     
     analytics.track(sessionId, { legalArea, language, responseTime: processingTime });
     
@@ -424,12 +340,6 @@ app.post('/analyze-document', async (req, res) => {
     
   } catch (error) {
     console.error('Document analysis error:', error);
-    
-    // Cleanup on error
-    if (req.files?.file?.tempFilePath) {
-      try { await fs.unlink(req.files.file.tempFilePath); } catch (e) {}
-    }
-    
     res.status(500).json({ error: error.message || 'Failed to analyze document' });
   }
 });
@@ -442,28 +352,22 @@ app.post('/email-summary', async (req, res) => {
     return res.status(400).json({ error: 'Email and conversation required' });
   }
   
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    return res.status(400).json({ error: 'Invalid email format' });
-  }
-  
   try {
     const summary = conversationHistory.map(msg => 
       `${msg.from}: ${msg.text}`
     ).join('\n\n');
     
-    // In production, use SendGrid/AWS SES/Nodemailer here
-    console.log(`📧 Email summary requested for: ${email}`);
-    console.log(`Summary preview: ${summary.substring(0, 100)}...`);
+    // In production, use SendGrid/AWS SES here
+    console.log(`Email summary sent to: ${email}`);
+    console.log(`Summary:\n${summary}`);
     
     res.json({ 
       success: true, 
-      message: `Conversation summary will be sent to ${email}`,
+      message: `Conversation summary sent to ${email}`,
       preview: summary.substring(0, 200) + '...'
     });
     
   } catch (error) {
-    console.error('Email error:', error);
     res.status(500).json({ error: 'Failed to send email' });
   }
 });
@@ -481,31 +385,17 @@ app.get('/analytics/dashboard', (req, res) => {
       language: s.language,
       duration: Math.round((Date.now() - s.startTime) / 1000 / 60),
       topArea: s.legalAreas[s.legalAreas.length - 1] || 'general'
-    })),
-    timestamp: new Date().toISOString()
+    }))
   });
 });
 
 // 💾 EXPORT CONVERSATION
 app.post('/export-conversation', (req, res) => {
   const { sessionId, format = 'json' } = req.body;
-  
-  if (!sessionId) {
-    return res.status(400).json({ error: 'sessionId required' });
-  }
-  
   const history = getHistory(sessionId);
   
-  if (history.length === 0) {
-    return res.status(404).json({ error: 'No conversation found' });
-  }
-  
   if (format === 'json') {
-    res.json({ 
-      conversation: history, 
-      sessionId, 
-      exportedAt: new Date().toISOString() 
-    });
+    res.json({ conversation: history, sessionId, exportedAt: new Date().toISOString() });
   } else {
     // Plain text format
     const text = history.map((msg, i) => 
@@ -528,7 +418,7 @@ app.post('/capture-lead', async (req, res) => {
   
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
-    return res.status(400).json({ error: 'Invalid email format' });
+    return res.status(400).json({ error: 'Invalid email' });
   }
   
   const leadData = {
@@ -544,38 +434,12 @@ app.post('/capture-lead', async (req, res) => {
   
   console.log('🎯 Lead captured:', leadData.email);
   
-  // In production: Save to database, trigger CRM webhook, send notification
+  // In production: Save to database, trigger CRM webhook
   
   res.json({ 
     success: true, 
     message: 'Thank you! We will contact you within 24 hours.',
     leadId: `lead_${Date.now()}`
-  });
-});
-
-// ===== ERROR HANDLING =====
-app.use((err, req, res, next) => {
-  console.error('Server error:', err);
-  
-  if (err.message.includes('CORS')) {
-    return res.status(403).json({ 
-      error: 'CORS policy violation',
-      message: 'This origin is not allowed to access the API'
-    });
-  }
-  
-  res.status(500).json({ 
-    error: err.message || 'Internal server error',
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Handle 404
-app.use((req, res) => {
-  res.status(404).json({ 
-    error: 'Not found',
-    path: req.path,
-    message: 'The requested endpoint does not exist'
   });
 });
 
@@ -589,9 +453,6 @@ app.listen(PORT, () => {
   console.log(`🌐 Languages: English, Hindi, Tamil, Telugu`);
   console.log(`📄 Document Analysis: Enabled`);
   console.log(`📊 Analytics: Active`);
-  console.log(`🔒 CORS: Enabled for Vercel`);
   console.log(`⏰ Started: ${new Date().toISOString()}`);
-  console.log('=================================');
-  console.log('Allowed origins:', allowedOrigins);
   console.log('=================================');
 });
