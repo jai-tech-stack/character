@@ -281,7 +281,7 @@ export const getTTS = async (text, language = 'en') => {
       setTimeout(() => {
         window.speechSynthesis.cancel();
         resolve();
-      }, 8000);
+      }, 10000);
       
     } catch (error) {
       console.warn('TTS error:', error);
@@ -299,7 +299,7 @@ export const stopTTS = () => {
 // ===== GREETING =====
 export const generateAIIntroduction = async (sessionId, language = 'en') => {
   const greetings = {
-    en: "Hello! I'm Advocate Arjun from FoxMandal. I can help with contracts, employment law, property matters, and more. What brings you here today?",
+    en: "Hello! I'm Advocate Arjun from FoxMandal. What brings you here today?",
     hi: "नमस्ते! मैं FoxMandal से एडवोकेट अर्जुन हूं। मैं अनुबंध, रोजगार कानून, संपत्ति मामलों और अधिक में मदद कर सकता हूं। आज आप यहां क्यों आए हैं?",
     ta: "வணக்கம்! நான் FoxMandal இலிருந்து அட்வகேட் அர்ஜுன். ஒப்பந்தங்கள், வேலைவாய்ப்பு சட்டம், சொத்து விஷயங்கள் மற்றும் பலவற்றில் உதவ முடியும். இன்று என்ன உதவி வேண்டும்?",
     te: "నమస్కారం! నేను FoxMandal నుండి అడ్వకేట్ అర్జున్. నేను ఒప్పందాలు, ఉద్యోగ చట్టం, ఆస్తి విషయాలు మరియు మరిన్నింటిలో సహాయం చేయగలను. ఈరోజు మీకు ఏమి కావాలి?"
